@@ -11,15 +11,17 @@ export function AutoRefresh({ enabled }: { enabled: boolean }) {
 
   useEffect(() => {
     if (!enabled) return;
+    let secondsRemaining = INTERVAL_SECONDS;
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return;
-      setRemaining((current) => {
-        if (current <= 1) {
-          router.refresh();
-          return INTERVAL_SECONDS;
-        }
-        return current - 1;
-      });
+      secondsRemaining -= 1;
+      if (secondsRemaining <= 0) {
+        secondsRemaining = INTERVAL_SECONDS;
+        setRemaining(secondsRemaining);
+        router.refresh();
+        return;
+      }
+      setRemaining(secondsRemaining);
     }, 1000);
     return () => window.clearInterval(timer);
   }, [enabled, router]);
