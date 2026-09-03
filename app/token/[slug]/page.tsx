@@ -24,7 +24,7 @@ export default async function TokenDetailPage({ params }: { params: Promise<{ sl
   return <AppShell active="" source={live ? 'dexscreener' : 'mock'} updatedAt={new Date().toISOString()}>
     <Link className="back-link" href="/pre-trending">← Back to signals</Link>
     <section className="token-hero">
-      <div className="token-identity"><TokenLogo symbol={token.symbol} color={token.color} large /><div><span className="eyebrow">TOKEN DETAIL · {live ? 'LIVE MARKET DATA' : 'FALLBACK DATA'}</span><h1>{token.name} <b>{token.symbol}</b></h1><p>{token.contract} <button title="Copy is simulated">Copy</button></p></div></div>
+      <div className="token-identity"><TokenLogo symbol={token.symbol} color={token.color} imageUrl={token.imageUrl} large /><div><span className="eyebrow">TOKEN DETAIL · {live ? 'LIVE MARKET DATA' : 'FALLBACK DATA'}</span><h1>{token.name} <b>{token.symbol}</b></h1><p>{token.contract} <button title="Copy is simulated">Copy</button></p></div></div>
       <div className="price-block"><span>Price</span><strong>${price}</strong><small className={token.priceChange5m >= 0 ? 'up' : 'down'}>{token.priceChange5m >= 0 ? '↗' : '↘'} {Math.abs(token.priceChange5m).toFixed(2)}% in 5m</small></div>
       <div className="hero-score"><span>MEMERADAR SCORE</span><ScoreBadge score={token.score} large /><small>Informational signal</small></div>
     </section>

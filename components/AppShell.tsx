@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { SearchBox } from './SearchBox';
+import { AutoRefresh } from './AutoRefresh';
 
 const navigation = [
   { id: 'dashboard', href: '/', icon: '⌁', label: 'Dashboard' },
@@ -34,6 +35,7 @@ export function AppShell({ active, children, source = 'mock', updatedAt }: { act
       <section className="workspace">
         <header className="topbar">
           <SearchBox />
+          <AutoRefresh enabled={isLive} />
           <span className={`network-pill ${isLive ? '' : 'network-pill-fallback'}`}><i /> {isLive ? 'SOLANA · LIVE' : 'SOLANA · DEMO'}</span>
           <Link className="icon-button" href="/alerts" aria-label="View alerts">♢<b>3</b></Link>
           <div className="avatar" title="Demo account">MR</div>

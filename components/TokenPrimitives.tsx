@@ -17,8 +17,8 @@ export function ScoreBadge({ score, large = false }: { score: number; large?: bo
   return <span className={`score score-${tone} ${large ? 'score-large' : ''}`}>{score}</span>;
 }
 
-export function TokenLogo({ symbol, color, large = false }: { symbol: string; color: string; large?: boolean }) {
-  return <span className={`token-logo ${large ? 'token-logo-large' : ''}`} style={{ background: color }}>{symbol.slice(0, 1)}</span>;
+export function TokenLogo({ symbol, color, imageUrl, large = false }: { symbol: string; color: string; imageUrl?: string; large?: boolean }) {
+  return <span className={`token-logo ${imageUrl ? 'token-logo-image' : ''} ${large ? 'token-logo-large' : ''}`} style={{ backgroundColor: color, backgroundImage: imageUrl ? `url(${imageUrl})` : undefined }} aria-label={`${symbol} token artwork`}>{symbol.slice(0, 1)}</span>;
 }
 
 export function Sparkline({ values, tone = 'green', large = false }: { values: number[]; tone?: 'green' | 'red'; large?: boolean }) {

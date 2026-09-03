@@ -22,7 +22,7 @@ export default async function DashboardPage() {
       <PageHeader eyebrow="SOLANA SIGNAL DESK" feedLabel={isLive ? 'DEX SCREENER CONNECTED' : 'FALLBACK DATA ACTIVE'} title="Market overview" description="Live market candidates worth a closer look, ranked by transparent activity, liquidity, participation, and available risk signals." action={{ label: '＋ Create alert', href: '/alerts' }} />
       <div className={`provider-banner ${isLive ? 'provider-live' : 'provider-fallback'}`}>
         <span>{isLive ? '● LIVE' : '● FALLBACK'}</span>
-        <p><strong>{isLive ? 'Market data is updating from DEX Screener.' : 'DEX Screener could not be reached, so the interface is showing demo data.'}</strong> {snapshot.notice}</p>
+        <p><strong>{isLive ? 'Token discovery and market metrics refresh every 3 seconds.' : 'DEX Screener could not be reached, so the interface is showing demo data.'}</strong> {snapshot.notice}</p>
         <Link href="/">Refresh ↻</Link>
       </div>
       <div className="metric-grid">
@@ -40,7 +40,7 @@ export default async function DashboardPage() {
       </div>
       <div className="insight-grid">
         <section className="panel radar-card"><div><span className="panel-kicker">CURRENT COVERAGE</span><h2>Market signals are live. On-chain checks come next.</h2><p>Price, volume, liquidity, pair age, and buy/sell activity now come from DEX Screener. Mint authority and holder concentration remain clearly marked as pending until Helius is connected.</p>{leader && <Link className="secondary-button" href={`/token/${leader.id}`}>Inspect a live score →</Link>}</div><div className="radar-visual"><i /><i /><i /><span>{leader?.score ?? '—'}<small>TOP SCORE</small></span></div></section>
-        {leader && <section className="panel leader-card"><div className="panel-head"><div><span className="panel-kicker">TOP LIVE SIGNAL</span><h2>Highest score in this set</h2></div></div><Link href={`/token/${leader.id}`} className="leader-token"><TokenLogo symbol={leader.symbol} color={leader.color} large /><div><strong>{leader.symbol}</strong><small>{leader.name} · {formatAge(leader.ageMinutes)} old</small></div><ScoreBadge score={leader.score} large /></Link><p><span>Why it stands out</span> This comparative score uses current activity and liquidity. It is not a recommendation or a return forecast.</p></section>}
+        {leader && <section className="panel leader-card"><div className="panel-head"><div><span className="panel-kicker">TOP LIVE SIGNAL</span><h2>Highest score in this set</h2></div></div><Link href={`/token/${leader.id}`} className="leader-token"><TokenLogo symbol={leader.symbol} color={leader.color} imageUrl={leader.imageUrl} large /><div><strong>{leader.symbol}</strong><small>{leader.name} · {formatAge(leader.ageMinutes)} old</small></div><ScoreBadge score={leader.score} large /></Link><p><span>Why it stands out</span> This comparative score uses current activity and liquidity. It is not a recommendation or a return forecast.</p></section>}
       </div>
       <p className="disclaimer">Live data is supplied by DEX Screener and may be delayed or incomplete. MemeRadar scores are informational signals—not financial advice or return predictions.</p>
     </AppShell>

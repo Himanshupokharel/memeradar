@@ -27,6 +27,7 @@ export type Token = {
   source?: 'dexscreener' | 'mock';
   externalUrl?: string;
   pairAddress?: string;
+  imageUrl?: string;
   sparkline: number[];
   risks: RiskFlag[];
   scoreBreakdown: {

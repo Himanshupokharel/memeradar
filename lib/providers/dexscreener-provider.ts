@@ -4,10 +4,12 @@ import { mockTokenProvider } from './mock-provider';
 import type { TokenProvider } from './token-provider';
 
 const API = 'https://api.dexscreener.com';
-const CACHE_MS = 30_000;
+const SNAPSHOT_CACHE_MS = 3_000;
+const DISCOVERY_CACHE_MS = 3_000;
 let memoryCache: { expires: number; snapshot: TokenSnapshot } | undefined;
+let discoveryCache: { expires: number; addresses: string[]; images: Map<string, string> } | undefined;
 
-type DiscoveryItem = { chainId?: string; tokenAddress?: string };
+type DiscoveryItem = { chainId?: string; tokenAddress?: string; icon?: string | null };
 type Pair = {
   chainId?: string;
   dexId?: string;
@@ -22,6 +24,7 @@ type Pair = {
   fdv?: number | null;
   marketCap?: number | null;
   pairCreatedAt?: number | null;
+  info?: { imageUrl?: string | null } | null;
 };
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));
@@ -66,7 +69,7 @@ function marketRisks(liquidity: number, marketCap: number, ageMinutes: number): 
   return flags;
 }
 
-function normalize(pair: Pair): Token | undefined {
+function normalize(pair: Pair, discoveryImage?: string): Token | undefined {
   const address = pair.baseToken?.address;
   const symbol = pair.baseToken?.symbol;
   if (!address || !symbol || !pair.pairCreatedAt) return undefined;
@@ -99,19 +102,13 @@ function normalize(pair: Pair): Token | undefined {
     sparkline: makeSparkline(address, change5m, trades),
     risks: marketRisks(liquidity, marketCap, ageMinutes), scoreBreakdown,
     source: 'dexscreener', externalUrl: pair.url, pairAddress: pair.pairAddress,
+    imageUrl: discoveryImage || pair.info?.imageUrl || undefined,
   };
 }
 
 async function fetchLiveSnapshot(): Promise<TokenSnapshot> {
   if (memoryCache && memoryCache.expires > Date.now()) return memoryCache.snapshot;
-  const [profiles, boosts] = await Promise.all([
-    getJson<DiscoveryItem[]>('/token-profiles/latest/v1'),
-    getJson<DiscoveryItem[]>('/token-boosts/latest/v1'),
-  ]);
-  const addresses = [...new Set([...profiles, ...boosts]
-    .filter((item) => item.chainId === 'solana' && item.tokenAddress)
-    .map((item) => item.tokenAddress as string))].slice(0, 30);
-  if (!addresses.length) throw new Error('No live Solana candidates returned');
+  const { addresses, images } = await fetchDiscovery();
   const pairs = await getJson<Pair[]>(`/tokens/v1/solana/${addresses.join(',')}`);
   const bestByToken = new Map<string, Pair>();
   for (const pair of pairs) {
@@ -120,11 +117,26 @@ async function fetchLiveSnapshot(): Promise<TokenSnapshot> {
     const existing = bestByToken.get(address);
     if (!existing || safeNumber(pair.liquidity?.usd) > safeNumber(existing.liquidity?.usd)) bestByToken.set(address, pair);
   }
-  const tokens = [...bestByToken.values()].map(normalize).filter((token): token is Token => Boolean(token));
+  const tokens = [...bestByToken.values()].map((pair) => normalize(pair, pair.baseToken?.address ? images.get(pair.baseToken.address) : undefined)).filter((token): token is Token => Boolean(token));
   if (!tokens.length) throw new Error('No usable Solana pairs returned');
-  const snapshot: TokenSnapshot = { tokens, source: 'dexscreener', updatedAt: new Date().toISOString(), notice: 'Candidate discovery combines latest profiles and active boosts.' };
-  memoryCache = { expires: Date.now() + CACHE_MS, snapshot };
+  const snapshot: TokenSnapshot = { tokens, source: 'dexscreener', updatedAt: new Date().toISOString(), notice: 'Candidates and market metrics refresh every 3s.' };
+  memoryCache = { expires: Date.now() + SNAPSHOT_CACHE_MS, snapshot };
   return snapshot;
+}
+
+async function fetchDiscovery() {
+  if (discoveryCache && discoveryCache.expires > Date.now()) return discoveryCache;
+  const [profiles, boosts] = await Promise.all([
+    getJson<DiscoveryItem[]>('/token-profiles/latest/v1'),
+    getJson<DiscoveryItem[]>('/token-boosts/latest/v1'),
+  ]);
+  const discovery = [...profiles, ...boosts].filter((item) => item.chainId === 'solana' && item.tokenAddress);
+  const addresses = [...new Set(discovery
+    .map((item) => item.tokenAddress as string))].slice(0, 30);
+  if (!addresses.length) throw new Error('No live Solana candidates returned');
+  const images = new Map(discovery.filter((item) => item.icon?.startsWith('https://')).map((item) => [item.tokenAddress as string, item.icon as string]));
+  discoveryCache = { expires: Date.now() + DISCOVERY_CACHE_MS, addresses, images };
+  return discoveryCache;
 }
 
 export const tokenProvider: TokenProvider = {

@@ -13,7 +13,8 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Alerts screen where you can create, switch, and delete rules during the current browser session
 - Responsive layouts for desktop, tablet, and mobile
 - Live price, liquidity, volume, transaction, price-change, valuation, and pair-age data from DEX Screener
-- A 30-second server cache that reduces external requests
+- Automatic 3-second refresh for token discovery and market metrics while the app is visible
+- Token artwork from the same DEX Screener records, with a generated letter fallback when no artwork is supplied
 - A provider boundary and fallback mode ready for Helius and Supabase
 
 ## Run it on your computer
@@ -111,7 +112,9 @@ Learn:
 - `fetch`, JSON, request limits, and error handling
 - Server-side versus browser-side code
 
-The app now receives pair discovery, prices, liquidity, volume, transactions, price changes, valuation, and pair age from DEX Screener. Read `lib/providers/dexscreener-provider.ts` from top to bottom. Notice that outside responses are normalized inside the provider rather than inside a visual component.
+The app now receives pair discovery, prices, liquidity, volume, transactions, price changes, valuation, pair age, and available token artwork from DEX Screener. Read `lib/providers/dexscreener-provider.ts` from top to bottom. Notice that outside responses are normalized inside the provider rather than inside a visual component. `components/AutoRefresh.tsx` asks the server for fresh candidates and market metrics every 3 seconds while the tab is visible.
+
+This aggressive polling is suitable for the current owner-only release and remains under the documented limits for one active user. Before sharing the site with many concurrent users, move polling into a shared scheduled cache so visitor count does not multiply requests.
 
 The “New Tokens” screen currently means the newest pairs in MemeRadar’s candidate feed. Candidate discovery combines DEX Screener’s latest token profiles and active boosts; it is not a complete feed of every new Solana pool. This limitation is shown in the interface.
 
@@ -138,7 +141,7 @@ Store token snapshots and alert rules in Supabase. Historical snapshots let you 
 
 ## Lowest-cost development path
 
-1. Use the current public DEX Screener connection and 30-second cache while validating the product.
+1. Use the current public DEX Screener connection and 3-second live refresh while validating the private product.
 2. Keep fallback data so provider downtime never creates a blank dashboard.
 3. Start with Helius’s available entry tier and monitor usage.
 4. Use Supabase’s entry tier once data history and background alerts are genuinely needed.
