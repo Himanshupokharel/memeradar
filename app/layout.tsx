@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { LiveMarketProvider } from '@/components/LiveMarketProvider';
 
 export const metadata: Metadata = {
   title: 'MemeRadar — Solana Signal Intelligence',
@@ -25,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><LiveMarketProvider>{children}</LiveMarketProvider></body>
     </html>
   );
 }

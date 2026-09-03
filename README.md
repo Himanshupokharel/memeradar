@@ -70,7 +70,7 @@ MemeRadar/
 
 ### Why this structure matters
 
-The interface reads one consistent `Token` shape. `dexscreener-provider.ts` discovers current Solana candidates, fetches their market pairs, translates the response into that shape, and calculates a comparative MemeRadar score. If a request fails, `mock-provider.ts` supplies fallback tokens. The screens do not need to know which provider produced the shape.
+The interface reads one consistent `Token` shape. In the current owner-only release, `LiveMarketProvider.tsx` asks DEX Screener directly from the visitor's browser every three seconds. `dexscreener-provider.ts` discovers current Solana candidates, fetches their market pairs, translates the response into the shared shape, and calculates a comparative MemeRadar score. If a direct request fails, `mock-provider.ts` supplies fallback tokens. The screens do not need to know which provider produced the shape.
 
 ```text
 DEX Screener → normalize + score ──┐
@@ -112,7 +112,7 @@ Learn:
 - `fetch`, JSON, request limits, and error handling
 - Server-side versus browser-side code
 
-The app now receives pair discovery, prices, liquidity, volume, transactions, price changes, valuation, pair age, and available token artwork from DEX Screener. Read `lib/providers/dexscreener-provider.ts` from top to bottom. Notice that outside responses are normalized inside the provider rather than inside a visual component. `components/AutoRefresh.tsx` asks the server for fresh candidates and market metrics every 3 seconds while the tab is visible.
+The app now receives pair discovery, prices, liquidity, volume, transactions, price changes, valuation, pair age, and available token artwork from DEX Screener. Read `lib/providers/dexscreener-provider.ts` from top to bottom. Notice that outside responses are normalized inside the provider rather than inside a visual component. `components/LiveMarketProvider.tsx` refreshes candidates and market metrics directly in the browser every three seconds while the tab is visible; `components/AutoRefresh.tsx` only displays that connection state.
 
 This aggressive polling is suitable for the current owner-only release and remains under the documented limits for one active user. Before sharing the site with many concurrent users, move polling into a shared scheduled cache so visitor count does not multiply requests.
 

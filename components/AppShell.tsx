@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { SearchBox } from './SearchBox';
 import { AutoRefresh } from './AutoRefresh';
+import { LiveNetworkStatus, LiveSidebarStatus } from './LiveSourceStatus';
 
 const navigation = [
   { id: 'dashboard', href: '/', icon: '⌁', label: 'Dashboard' },
@@ -10,8 +11,7 @@ const navigation = [
   { id: 'alerts', href: '/alerts', icon: '◎', label: 'Alerts' },
 ];
 
-export function AppShell({ active, children, source = 'mock', updatedAt }: { active: string; children: ReactNode; source?: 'dexscreener' | 'mock'; updatedAt?: string }) {
-  const isLive = source === 'dexscreener';
+export function AppShell({ active, children }: { active: string; children: ReactNode; source?: 'dexscreener' | 'mock'; updatedAt?: string }) {
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -24,19 +24,15 @@ export function AppShell({ active, children, source = 'mock', updatedAt }: { act
             </Link>
           ))}
         </nav>
-        <div className={`sidebar-card ${isLive ? 'sidebar-card-live' : ''}`}>
-          <span className="live-dot" /> {isLive ? 'LIVE MARKET' : 'FALLBACK MODE'}
-          <strong>{isLive ? 'DEX Screener connected' : 'Demo data connected'}</strong>
-          <small>{updatedAt ? `Updated ${new Date(updatedAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}` : 'Provider status pending'}</small>
-        </div>
+        <LiveSidebarStatus />
         <div className="sidebar-note">V1 · INFORMATIONAL ONLY</div>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
           <SearchBox />
-          <AutoRefresh enabled={isLive} />
-          <span className={`network-pill ${isLive ? '' : 'network-pill-fallback'}`}><i /> {isLive ? 'SOLANA · LIVE' : 'SOLANA · DEMO'}</span>
+          <AutoRefresh />
+          <LiveNetworkStatus />
           <Link className="icon-button" href="/alerts" aria-label="View alerts">♢<b>3</b></Link>
           <div className="avatar" title="Demo account">MR</div>
         </header>

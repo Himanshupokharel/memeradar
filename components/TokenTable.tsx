@@ -4,22 +4,26 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { Token } from '@/lib/types';
 import { formatAge, formatMoney, PressureBar, RiskFlags, ScoreBadge, Sparkline, TokenLogo } from './TokenPrimitives';
+import { useLiveMarket } from './LiveMarketProvider';
 
 type SortKey = 'score' | 'ageMinutes' | 'volume5m' | 'liquidity';
 
-export function TokenTable({ data, title, kicker, initialQuery = '', compact = false }: { data: Token[]; title?: string; kicker?: string; initialQuery?: string; compact?: boolean }) {
+export function TokenTable({ data, title, kicker, initialQuery = '', compact = false, mode = 'all' }: { data: Token[]; title?: string; kicker?: string; initialQuery?: string; compact?: boolean; mode?: 'all' | 'newest' | 'trending' }) {
+  const { snapshot, status } = useLiveMarket();
   const [query, setQuery] = useState(initialQuery);
   const [score, setScore] = useState('all');
   const [liquidity, setLiquidity] = useState('all');
   const [age, setAge] = useState('all');
   const [sort, setSort] = useState<SortKey>('score');
 
-  const filtered = useMemo(() => data
+  const sourceData = status === 'live' ? snapshot.tokens : data;
+  const filtered = useMemo(() => sourceData
+    .filter((token) => mode !== 'trending' || token.score >= 55)
     .filter((token) => `${token.name} ${token.symbol} ${token.contract}`.toLowerCase().includes(query.toLowerCase()))
     .filter((token) => score === 'all' || token.score >= Number(score))
     .filter((token) => liquidity === 'all' || token.liquidity >= Number(liquidity))
     .filter((token) => age === 'all' || token.ageMinutes <= Number(age))
-    .sort((a, b) => sort === 'ageMinutes' ? a.ageMinutes - b.ageMinutes : b[sort] - a[sort]), [data, query, score, liquidity, age, sort]);
+    .sort((a, b) => mode === 'newest' ? a.ageMinutes - b.ageMinutes : sort === 'ageMinutes' ? a.ageMinutes - b.ageMinutes : b[sort] - a[sort]), [sourceData, mode, query, score, liquidity, age, sort]);
 
   return (
     <section className="panel token-panel">
