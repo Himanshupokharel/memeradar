@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { Token } from '@/lib/types';
 import { formatAge, formatMoney, PressureBar, RiskFlags, ScoreBadge, Sparkline, TokenLogo } from './TokenPrimitives';
@@ -44,7 +43,7 @@ export function TokenTable({ data, title, kicker, initialQuery = '', compact = f
           <thead><tr><th>Token</th><th>MR score</th><th>Market cap</th><th>Liquidity</th><th>5m volume</th><th>Age</th><th>Buy pressure</th><th title="Illustrative shape derived from current 5m change and trade intensity">Momentum*</th><th>Risk flags</th></tr></thead>
           <tbody>{filtered.map((token) => (
             <tr key={token.id}>
-              <td><Link className="token-cell" href={`/token/${token.id}`}><TokenLogo symbol={token.symbol} color={token.color} imageUrl={token.imageUrl} /><span><b>{token.symbol}</b><small>{token.name} · {token.contract}</small></span></Link></td>
+              <td><a className="token-cell" href={`/token/${token.id}`}><TokenLogo symbol={token.symbol} color={token.color} imageUrl={token.imageUrl} /><span><b>{token.symbol}</b><small>{token.name} · {token.contract}</small></span></a></td>
               <td><ScoreBadge score={token.score} /></td>
               <td>{formatMoney(token.marketCap)}</td><td>{formatMoney(token.liquidity)}</td><td>{formatMoney(token.volume5m)}</td><td>{formatAge(token.ageMinutes)}</td>
               <td><PressureBar value={token.buyPressure} /></td>
