@@ -73,3 +73,9 @@ export type OnchainRiskReport = {
   flags: RiskFlag[];
   cached: boolean;
 };
+
+export type AlertWorkerStatus = {
+  active: boolean;
+  lastRunAt?: string;
+  lastStatus?: string;
+};

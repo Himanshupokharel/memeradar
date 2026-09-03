@@ -15,7 +15,7 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Live price, liquidity, volume, transaction, price-change, valuation, and pair-age data from DEX Screener
 - Automatic 3-second refresh for token discovery and market metrics while the app is visible
 - Token artwork from the same DEX Screener records, with a generated letter fallback when no artwork is supplied
-- Minute-by-minute market snapshots saved in Supabase while the live dashboard is open
+- Minute-by-minute market snapshots saved by a 24/7 Supabase background worker
 - Alert matching against each saved minute snapshot, with match counts and a 15-minute repeat guard
 - Helius checks for mint authority, freeze authority, metadata mutability, and top token-account concentration
 
@@ -87,14 +87,14 @@ MemeRadar/
 
 ### Why this structure matters
 
-The interface reads one consistent `Token` shape. In the current owner-only release, `LiveMarketProvider.tsx` asks DEX Screener directly from the browser every three seconds. It sends one snapshot per minute to MemeRadar’s private server endpoint, which saves it in Supabase and evaluates saved alert rules. A Token Detail page asks another private endpoint for a cached Helius risk report. Real secret keys never enter browser code.
+The interface reads one consistent `Token` shape. In the current owner-only release, `LiveMarketProvider.tsx` asks DEX Screener directly from the browser every three seconds. A Supabase Edge Function independently repeats discovery every minute, saves history, and evaluates alerts even when every browser is closed. A Token Detail page asks a private endpoint for a cached Helius risk report. Real secret keys never enter browser code.
 
 ```text
-DEX Screener → normalize + score → every screen
-       │                    │
-       │ every minute       └→ Helius risk endpoint → cached check
+DEX Screener → 3-second browser feed → every screen
+       │                               └→ Helius risk endpoint → cached check
+       │ every minute, around the clock
        ▼
-Supabase snapshots → real chart history + persistent alert matching
+Supabase Edge Function → snapshots → real history + persistent alert matching
 
 If DEX Screener is unavailable → clearly labeled mock fallback
 ```
@@ -158,9 +158,13 @@ Learn:
 
 The app stores one snapshot per token per minute, persistent alert rules, matches, cached risk checks, and ingestion records. Historical snapshots let you test whether early signals were useful instead of judging the score by anecdotes.
 
-### Step 6 — Add true background alert delivery (later)
+### Step 6 — Add true background evaluation (complete)
 
-Learn scheduled jobs and notification delivery. V2 evaluates rules whenever a live browser has MemeRadar open. A later scheduled worker can continue evaluation when every browser is closed and can deliver email or phone notifications.
+Learn scheduled jobs and function logs. Supabase Cron invokes `memeradar-alert-worker` once per minute. The worker uses the same discovery and scoring logic as the interface, saves snapshots, evaluates enabled rules, and records every run. It has a 40-second duplicate guard and each alert rule has a 15-minute repeat guard.
+
+### Step 7 — Add notification delivery (later)
+
+The next alert improvement is optional email, Telegram, or phone delivery. The current version records matches inside MemeRadar but does not contact anyone outside the app.
 
 ## Lowest-cost development path
 
@@ -195,4 +199,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Add an authenticated scheduled worker for alerts that must run while the dashboard is closed, then build a backtesting report from the saved snapshots. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.
+Build a backtesting report from the saved snapshots so the score can be measured against later outcomes. After that, add optional external alert delivery. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.

@@ -131,6 +131,9 @@ tbody tr { transition: background .15s; } tbody tr:hover { background: #111b24; 
 .disclaimer { color: #4d5a6e; font-size: 9px; text-align: center; margin: 24px 0 0; }
 .form-error { margin: 0; color: #f2a0a7; background: #26171b; border: 1px solid #5f3039; border-radius: 7px; padding: 10px; font-size: 9px; line-height: 1.5; }
 .rule-list .last-match { display: block; color: #4e8e74; font-size: 8px; margin-top: 5px; }
+.worker-status { display: flex; align-items: center; gap: 9px; padding: 11px 17px; border-bottom: 1px solid var(--line); background: #16170f; color: var(--amber); }
+.worker-status .live-dot { background: var(--amber); box-shadow: 0 0 9px var(--amber); }.worker-status > div { display: grid; gap: 2px; }.worker-status strong { font-size: 10px; }.worker-status small { color: #6b6e61; font-size: 8px; }
+.worker-active { background: #0c1815; color: var(--green); }.worker-active .live-dot { background: var(--green); box-shadow: 0 0 9px var(--green); }.worker-active small { color: #567265; }
 .risk-loading { margin: 0; padding: 13px 19px; color: #7ba18f; background: #0c1714; border-bottom: 1px solid var(--line); font-size: 9px; }
 .risk-error { color: #c8a762; background: #1b170d; }
 .risk-state-ready { color: var(--green); background: #10251d; }.risk-state-unavailable { color: var(--amber); background: #282316; }

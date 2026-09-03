@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isSupabaseConfigured, supabaseRest } from '@/lib/server/supabase';
-import type { AlertRule } from '@/lib/types';
+import type { AlertRule, AlertWorkerStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 const SCOPE = 'private-site-owner';
@@ -10,6 +10,8 @@ type RuleRow = {
   conditions: { score?: number; liquidity?: number; maxAge?: number } | null;
   match_count: number; last_triggered_at: string | null;
 };
+
+type IngestionRow = { finished_at: string | null; status: string };
 
 function toRule(row: RuleRow): AlertRule {
   return {
@@ -31,8 +33,17 @@ function unavailable() {
 export async function GET() {
   if (!isSupabaseConfigured()) return unavailable();
   try {
-    const rows = await supabaseRest<RuleRow[]>(`alert_rules?owner_scope=eq.${SCOPE}&select=id,name,enabled,conditions,match_count,last_triggered_at&order=created_at.desc`);
-    return NextResponse.json({ configured: true, rules: rows.map(toRule) });
+    const [rows, runs] = await Promise.all([
+      supabaseRest<RuleRow[]>(`alert_rules?owner_scope=eq.${SCOPE}&select=id,name,enabled,conditions,match_count,last_triggered_at&order=created_at.desc`),
+      supabaseRest<IngestionRow[]>('ingestion_runs?provider=eq.supabase-cron-dexscreener&select=finished_at,status&order=finished_at.desc&limit=1'),
+    ]);
+    const latest = runs[0];
+    const worker: AlertWorkerStatus = {
+      active: Boolean(latest?.finished_at && latest.status === 'succeeded' && Date.now() - new Date(latest.finished_at).getTime() < 3 * 60_000),
+      lastRunAt: latest?.finished_at || undefined,
+      lastStatus: latest?.status,
+    };
+    return NextResponse.json({ configured: true, rules: rows.map(toRule), worker });
   } catch (error) {
     console.error('Alert rule lookup failed:', error);
     return NextResponse.json({ configured: true, error: 'alerts_unavailable' }, { status: 502 });

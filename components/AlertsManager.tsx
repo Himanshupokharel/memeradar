@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import type { AlertRule } from '@/lib/types';
+import type { AlertRule, AlertWorkerStatus } from '@/lib/types';
 import { formatMoney } from './TokenPrimitives';
 
 export function AlertsManager() {
@@ -14,15 +14,16 @@ export function AlertsManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [worker, setWorker] = useState<AlertWorkerStatus>({ active: false });
 
   useEffect(() => {
     let active = true;
     void fetch('/api/alerts', { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) throw new Error('Persistent alert storage is unavailable.');
-        return response.json() as Promise<{ rules: AlertRule[] }>;
+        return response.json() as Promise<{ rules: AlertRule[]; worker?: AlertWorkerStatus }>;
       })
-      .then((data) => { if (active) setRules(data.rules); })
+      .then((data) => { if (active) { setRules(data.rules); setWorker(data.worker || { active: false }); } })
       .catch(() => { if (active) setError('Could not connect to saved alerts. The live market pages still work.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -104,6 +105,7 @@ export function AlertsManager() {
 
       <section className="panel saved-rules">
         <div className="panel-head"><div><span className="panel-kicker">YOUR WATCHERS</span><h2>Saved alert rules</h2></div><span className="result-count">{rules.filter((rule) => rule.enabled).length} ACTIVE</span></div>
+        <div className={`worker-status ${worker.active ? 'worker-active' : ''}`}><span className="live-dot" /><div><strong>{worker.active ? '24/7 scanner active' : 'Background scanner waiting'}</strong><small>{worker.lastRunAt ? `Last run ${new Date(worker.lastRunAt).toLocaleString()}` : 'The first scheduled run has not arrived yet.'}</small></div></div>
         <div className="rule-list">
           {loading && <div className="empty-state"><strong>Loading saved rules…</strong><span>Connecting to MemeRadar storage.</span></div>}
           {!loading && rules.map((rule) => <article className={rule.enabled ? '' : 'rule-off'} key={rule.id}>
