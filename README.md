@@ -1,6 +1,6 @@
-# MemeRadar V1
+# MemeRadar V2
 
-MemeRadar is a dark, responsive research dashboard for exploring early Solana token activity. It now connects to DEX Screener for live Solana market candidates without requiring an API key. If that service is temporarily unavailable, the app clearly switches to realistic fallback data instead of breaking.
+MemeRadar is a dark, responsive research dashboard for exploring early Solana token activity. It combines fast DEX Screener market data, Helius on-chain checks, and Supabase history and alert storage. If a live market request fails, the app clearly switches to realistic fallback data instead of breaking.
 
 The MemeRadar score is an informational signal. It is not financial advice, a return prediction, or an instruction to buy or sell. This project deliberately contains no auto-trading.
 
@@ -9,13 +9,15 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Dashboard with live market summaries, source status, a signal feed, and a clear score explanation
 - New Tokens screen with search, score, liquidity, age, and sorting filters
 - Pre-Trending screen with a transparent qualification path
-- Token Detail pages with metrics, activity, score breakdowns, and risk flags
-- Alerts screen where you can create, switch, and delete rules during the current browser session
+- Token Detail pages with saved price history, score breakdowns, market risks, and cached Helius checks
+- Persistent Alerts screen where you can create, pause, and delete rules saved in Supabase
 - Responsive layouts for desktop, tablet, and mobile
 - Live price, liquidity, volume, transaction, price-change, valuation, and pair-age data from DEX Screener
 - Automatic 3-second refresh for token discovery and market metrics while the app is visible
 - Token artwork from the same DEX Screener records, with a generated letter fallback when no artwork is supplied
-- A provider boundary and fallback mode ready for Helius and Supabase
+- Minute-by-minute market snapshots saved in Supabase while the live dashboard is open
+- Alert matching against each saved minute snapshot, with match counts and a 15-minute repeat guard
+- Helius checks for mint authority, freeze authority, metadata mutability, and top token-account concentration
 
 ## Run it on your computer
 
@@ -44,12 +46,25 @@ You need **Node.js 22.13 or newer**. Node.js is the program that runs the develo
 
 Stop the app by returning to Terminal and pressing `Control + C`.
 
+### Connect the live services locally
+
+Copy `.env.example` to a new file named `.env.local`, then fill in your own values. Do not paste secret keys into any file that will be committed to Git.
+
+```text
+HELIUS_API_KEY=your_existing_helius_key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=your_existing_supabase_server_secret
+```
+
+`SUPABASE_SECRET_KEY` and `HELIUS_API_KEY` are server-only. Never rename them with a `NEXT_PUBLIC_` prefix because that prefix is intended for values that may be sent to the browser. Production uses the hosting platform’s encrypted environment settings rather than a committed file.
+
 ## A beginner’s map of the folders
 
 ```text
 MemeRadar/
 ├── app/                         The screens and global visual styling
 │   ├── page.tsx                 Dashboard (/)
+│   ├── api/                     Private server endpoints for history, risks, and alerts
 │   ├── new-tokens/page.tsx      New Tokens (/new-tokens)
 │   ├── pre-trending/page.tsx    Pre-Trending (/pre-trending)
 │   ├── alerts/page.tsx          Alerts (/alerts)
@@ -63,21 +78,25 @@ MemeRadar/
 │   ├── mock-data.ts             Fallback token and sample alert data
 │   ├── types.ts                 The exact shape data must have
 │   ├── scoring.ts               Understandable score formula
-│   └── providers/               DEX Screener, fallback, and provider contract
+│   ├── providers/               DEX Screener, fallback, and provider contract
+│   └── server/                  Helius and Supabase connections (server only)
+├── supabase/schema.sql          Rebuildable database structure
 ├── public/                      Files the browser can load directly
 └── .env.example                 Names of future secret settings (no real keys)
 ```
 
 ### Why this structure matters
 
-The interface reads one consistent `Token` shape. In the current owner-only release, `LiveMarketProvider.tsx` asks DEX Screener directly from the visitor's browser every three seconds. `dexscreener-provider.ts` discovers current Solana candidates, fetches their market pairs, translates the response into the shared shape, and calculates a comparative MemeRadar score. If a direct request fails, `mock-provider.ts` supplies fallback tokens. The screens do not need to know which provider produced the shape.
+The interface reads one consistent `Token` shape. In the current owner-only release, `LiveMarketProvider.tsx` asks DEX Screener directly from the browser every three seconds. It sends one snapshot per minute to MemeRadar’s private server endpoint, which saves it in Supabase and evaluates saved alert rules. A Token Detail page asks another private endpoint for a cached Helius risk report. Real secret keys never enter browser code.
 
 ```text
-DEX Screener → normalize + score ──┐
-                                   ├→ Token shape → every screen
-API unavailable → mock fallback ───┘
-                         ↓ next
-              Helius + Supabase history
+DEX Screener → normalize + score → every screen
+       │                    │
+       │ every minute       └→ Helius risk endpoint → cached check
+       ▼
+Supabase snapshots → real chart history + persistent alert matching
+
+If DEX Screener is unavailable → clearly labeled mock fallback
 ```
 
 ## What to learn, and when
@@ -118,7 +137,7 @@ This aggressive polling is suitable for the current owner-only release and remai
 
 The “New Tokens” screen currently means the newest pairs in MemeRadar’s candidate feed. Candidate discovery combines DEX Screener’s latest token profiles and active boosts; it is not a complete feed of every new Solana pool. This limitation is shown in the interface.
 
-### Step 4 — Add Helius checks
+### Step 4 — Understand Helius checks (complete)
 
 Learn:
 
@@ -126,9 +145,9 @@ Learn:
 - Solana mint accounts, token holders, and parsed transactions
 - Caching and rate limits
 
-Helius should enrich a token with on-chain checks. It complements market data; it does not replace it.
+Helius enriches each live token detail page with Solana mint-account checks. The result is cached for ten minutes to protect the free allowance. “Top accounts” means token accounts, not necessarily ten individual people; pool and exchange accounts may appear.
 
-### Step 5 — Save history and alerts with Supabase
+### Step 5 — Understand Supabase history and alerts (complete)
 
 Learn:
 
@@ -137,7 +156,11 @@ Learn:
 - Authentication and access rules
 - Scheduled background jobs
 
-Store token snapshots and alert rules in Supabase. Historical snapshots let you test whether early signals were useful instead of judging the score by anecdotes.
+The app stores one snapshot per token per minute, persistent alert rules, matches, cached risk checks, and ingestion records. Historical snapshots let you test whether early signals were useful instead of judging the score by anecdotes.
+
+### Step 6 — Add true background alert delivery (later)
+
+Learn scheduled jobs and notification delivery. V2 evaluates rules whenever a live browser has MemeRadar open. A later scheduled worker can continue evaluation when every browser is closed and can deliver email or phone notifications.
 
 ## Lowest-cost development path
 
@@ -149,7 +172,7 @@ Store token snapshots and alert rules in Supabase. Historical snapshots let you 
 
 Pricing and API limits can change, so check each provider’s current official documentation before choosing a plan.
 
-## How the score works in V1
+## How the score works in V2
 
 `lib/scoring.ts` combines four 0–100 inputs:
 
@@ -158,7 +181,7 @@ Pricing and API limits can change, so check each provider’s current official d
 - Participation: 25%
 - Safety: 20%
 
-This is intentionally understandable. Momentum, liquidity, and participation now use live DEX Screener fields. Safety currently uses only pair age, liquidity depth, and the liquidity-to-valuation ratio. Mint authority and holder concentration remain marked “pending” until Helius is added. The score should be backtested against stored historical snapshots before anyone treats it as useful evidence.
+This is intentionally understandable. Momentum, liquidity, participation, and the score’s safety component use live DEX Screener fields. Helius risk checks appear separately so users can distinguish market-derived scoring from on-chain facts. The score should be backtested against stored historical snapshots before anyone treats it as useful evidence.
 
 The small momentum bars are an illustrative shape derived from the current five-minute price change and trade intensity. DEX Screener’s current pair response does not supply tick-by-tick history through the endpoints used here, so the interface labels this honestly.
 
@@ -172,4 +195,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Add Helius for mint authority, freeze authority, holder concentration, and wallet-activity checks. Then add Supabase snapshots so scores can be backtested and alert rules can run while the user is offline. Non-custodial Jupiter swaps and wallet signing should come only after those research and reliability layers are stable.
+Add an authenticated scheduled worker for alerts that must run while the dashboard is closed, then build a backtesting report from the saved snapshots. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.

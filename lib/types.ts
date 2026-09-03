@@ -53,4 +53,23 @@ export type AlertRule = {
   maxAge: number;
   enabled: boolean;
   matches: number;
+  lastTriggeredAt?: string;
+};
+
+export type HistoricalPoint = {
+  capturedAt: string;
+  price: number;
+  marketCap: number;
+  liquidity: number;
+  volume5m: number;
+  score: number;
+};
+
+export type OnchainRiskReport = {
+  mint: string;
+  checkedAt: string;
+  riskScore: number;
+  top10TokenAccountPct: number | null;
+  flags: RiskFlag[];
+  cached: boolean;
 };

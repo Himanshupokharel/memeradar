@@ -26,7 +26,7 @@ export function AppShell({ active, children }: { active: string; children: React
           ))}
         </nav>
         <LiveSidebarStatus />
-        <div className="sidebar-note">V1 · INFORMATIONAL ONLY</div>
+        <div className="sidebar-note">V2 · INFORMATIONAL ONLY</div>
       </aside>
 
       <section className="workspace">
