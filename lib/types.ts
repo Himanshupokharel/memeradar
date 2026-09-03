@@ -24,6 +24,9 @@ export type Token = {
   price: number;
   priceChange5m: number;
   holders: number;
+  source?: 'dexscreener' | 'mock';
+  externalUrl?: string;
+  pairAddress?: string;
   sparkline: number[];
   risks: RiskFlag[];
   scoreBreakdown: {
@@ -32,6 +35,13 @@ export type Token = {
     participation: number;
     safety: number;
   };
+};
+
+export type TokenSnapshot = {
+  tokens: Token[];
+  source: 'dexscreener' | 'mock';
+  updatedAt: string;
+  notice?: string;
 };
 
 export type AlertRule = {

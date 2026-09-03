@@ -37,7 +37,7 @@ export function TokenTable({ data, title, kicker, initialQuery = '', compact = f
       </div>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Token</th><th>MR score</th><th>Market cap</th><th>Liquidity</th><th>5m volume</th><th>Age</th><th>Buy pressure</th><th>Trend</th><th>Risk flags</th></tr></thead>
+          <thead><tr><th>Token</th><th>MR score</th><th>Market cap</th><th>Liquidity</th><th>5m volume</th><th>Age</th><th>Buy pressure</th><th title="Illustrative shape derived from current 5m change and trade intensity">Momentum*</th><th>Risk flags</th></tr></thead>
           <tbody>{filtered.map((token) => (
             <tr key={token.id}>
               <td><Link className="token-cell" href={`/token/${token.id}`}><TokenLogo symbol={token.symbol} color={token.color} /><span><b>{token.symbol}</b><small>{token.name} · {token.contract}</small></span></Link></td>
@@ -51,6 +51,7 @@ export function TokenTable({ data, title, kicker, initialQuery = '', compact = f
         </table>
       </div>
       {filtered.length === 0 && <div className="empty-state"><strong>No tokens match those filters</strong><span>Try lowering the score or liquidity requirement.</span></div>}
+      {!compact && <p className="table-note">* Momentum shape is derived from the current 5-minute change and trade intensity; it is not tick-level price history.</p>}
     </section>
   );
 }

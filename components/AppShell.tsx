@@ -9,7 +9,8 @@ const navigation = [
   { id: 'alerts', href: '/alerts', icon: '◎', label: 'Alerts' },
 ];
 
-export function AppShell({ active, children }: { active: string; children: ReactNode }) {
+export function AppShell({ active, children, source = 'mock', updatedAt }: { active: string; children: ReactNode; source?: 'dexscreener' | 'mock'; updatedAt?: string }) {
+  const isLive = source === 'dexscreener';
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -22,10 +23,10 @@ export function AppShell({ active, children }: { active: string; children: React
             </Link>
           ))}
         </nav>
-        <div className="sidebar-card">
-          <span className="live-dot" /> DEMO MODE
-          <strong>Mock data connected</strong>
-          <small>Explore every screen safely.</small>
+        <div className={`sidebar-card ${isLive ? 'sidebar-card-live' : ''}`}>
+          <span className="live-dot" /> {isLive ? 'LIVE MARKET' : 'FALLBACK MODE'}
+          <strong>{isLive ? 'DEX Screener connected' : 'Demo data connected'}</strong>
+          <small>{updatedAt ? `Updated ${new Date(updatedAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}` : 'Provider status pending'}</small>
         </div>
         <div className="sidebar-note">V1 · INFORMATIONAL ONLY</div>
       </aside>
@@ -33,7 +34,7 @@ export function AppShell({ active, children }: { active: string; children: React
       <section className="workspace">
         <header className="topbar">
           <SearchBox />
-          <span className="network-pill"><i /> SOLANA</span>
+          <span className={`network-pill ${isLive ? '' : 'network-pill-fallback'}`}><i /> {isLive ? 'SOLANA · LIVE' : 'SOLANA · DEMO'}</span>
           <Link className="icon-button" href="/alerts" aria-label="View alerts">♢<b>3</b></Link>
           <div className="avatar" title="Demo account">MR</div>
         </header>

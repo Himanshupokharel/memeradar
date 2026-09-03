@@ -2,6 +2,9 @@ import { tokens } from '../mock-data';
 import type { TokenProvider } from './token-provider';
 
 export const mockTokenProvider: TokenProvider = {
+  async getSnapshot() {
+    return { tokens, source: 'mock', updatedAt: new Date().toISOString(), notice: 'Live provider unavailable. Showing fallback demo data.' };
+  },
   async getTokens() {
     return tokens;
   },
@@ -9,6 +12,3 @@ export const mockTokenProvider: TokenProvider = {
     return tokens.find((token) => token.id === id);
   },
 };
-
-// Swap this export for a DEX Screener/Helius-backed provider later.
-export const tokenProvider = mockTokenProvider;

@@ -3,35 +3,46 @@ import { AppShell } from '@/components/AppShell';
 import { MetricCard } from '@/components/MetricCard';
 import { PageHeader } from '@/components/PageHeader';
 import { TokenTable } from '@/components/TokenTable';
-import { ScoreBadge, TokenLogo } from '@/components/TokenPrimitives';
-import { recentSignals } from '@/lib/mock-data';
-import { tokenProvider } from '@/lib/providers/mock-provider';
+import { formatAge, ScoreBadge, TokenLogo } from '@/components/TokenPrimitives';
+import { tokenProvider } from '@/lib/providers/dexscreener-provider';
+
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const tokens = await tokenProvider.getTokens();
-  const trending = tokens.filter((token) => token.score >= 65).slice(0, 5);
-  const totalVolume = tokens.reduce((sum, token) => sum + token.volume5m, 0);
+  const snapshot = await tokenProvider.getSnapshot();
+  const byScore = [...snapshot.tokens].sort((a, b) => b.score - a.score);
+  const trending = byScore.filter((token) => token.score >= 55).slice(0, 6);
+  const leader = byScore[0];
+  const totalVolume = snapshot.tokens.reduce((sum, token) => sum + token.volume5m, 0);
+  const recent = [...snapshot.tokens].sort((a, b) => a.ageMinutes - b.ageMinutes).slice(0, 3);
+  const isLive = snapshot.source === 'dexscreener';
+
   return (
-    <AppShell active="dashboard">
-      <PageHeader eyebrow="SOLANA SIGNAL DESK" title="Market overview" description="Early activity worth a closer look, ranked by transparent market and risk signals." action={{ label: '＋ Create alert', href: '/alerts' }} />
+    <AppShell active="dashboard" source={snapshot.source} updatedAt={snapshot.updatedAt}>
+      <PageHeader eyebrow="SOLANA SIGNAL DESK" feedLabel={isLive ? 'DEX SCREENER CONNECTED' : 'FALLBACK DATA ACTIVE'} title="Market overview" description="Live market candidates worth a closer look, ranked by transparent activity, liquidity, participation, and available risk signals." action={{ label: '＋ Create alert', href: '/alerts' }} />
+      <div className={`provider-banner ${isLive ? 'provider-live' : 'provider-fallback'}`}>
+        <span>{isLive ? '● LIVE' : '● FALLBACK'}</span>
+        <p><strong>{isLive ? 'Market data is updating from DEX Screener.' : 'DEX Screener could not be reached, so the interface is showing demo data.'}</strong> {snapshot.notice}</p>
+        <Link href="/">Refresh ↻</Link>
+      </div>
       <div className="metric-grid">
-        <MetricCard label="Tokens tracked" value="2,847" note="↗ 12.4% today" tone="up" />
-        <MetricCard label="New in 1 hour" value="124" note="38 passed baseline checks" />
-        <MetricCard label="Pre-trending" value={String(trending.length)} note="2 strong signals right now" tone="up" />
-        <MetricCard label="5m volume" value={`$${Math.round(totalVolume / 1000)}K`} note="↗ 8.2% vs prior window" tone="up" />
+        <MetricCard label="Live candidates" value={String(snapshot.tokens.length)} note="Latest Solana discovery set" tone="up" />
+        <MetricCard label="Created under 1h" value={String(snapshot.tokens.filter((token) => token.ageMinutes <= 60).length)} note="Extremely new; use caution" tone="warn" />
+        <MetricCard label="Signal shortlist" value={String(trending.length)} note="Derived score of 55 or higher" tone="up" />
+        <MetricCard label="Combined 5m volume" value={`$${Math.round(totalVolume / 1000).toLocaleString()}K`} note="Current candidate set" />
       </div>
       <div className="dashboard-grid">
-        <TokenTable data={trending} title="Pre-trending tokens" kicker="LIVE DISCOVERY" compact />
+        <TokenTable data={trending} title="Live signal shortlist" kicker="DEX SCREENER MARKET DATA" compact />
         <section className="panel signal-feed">
-          <div className="panel-head"><div><span className="panel-kicker">SIGNAL FEED</span><h2>Latest changes</h2></div><Link href="/alerts" className="text-button">All alerts →</Link></div>
-          <div className="signal-list">{recentSignals.map((signal) => <div key={`${signal.token}-${signal.time}`}><span className={`signal-dot signal-${signal.tone}`} /><div><strong>{signal.token}</strong><p>{signal.message}</p></div><time>{signal.time}</time></div>)}</div>
+          <div className="panel-head"><div><span className="panel-kicker">NEWLY OBSERVED</span><h2>Fresh candidates</h2></div><Link href="/new-tokens" className="text-button">All tokens →</Link></div>
+          <div className="signal-list">{recent.map((token) => <div key={token.id}><span className="signal-dot" /><div><strong>{token.symbol}</strong><p>{formatAge(token.ageMinutes)} old · {token.buyPressure}% buy pressure</p></div><time>{token.score} score</time></div>)}</div>
         </section>
       </div>
       <div className="insight-grid">
-        <section className="panel radar-card"><div><span className="panel-kicker">HOW TO READ IT</span><h2>One score. Four ingredients.</h2><p>MemeRadar combines momentum, liquidity, buyer participation, and safety checks. Open any token to see exactly why it received its score.</p><Link className="secondary-button" href="/token/neon-cat">Explore a score breakdown →</Link></div><div className="radar-visual"><i /><i /><i /><span>86<small>MR SCORE</small></span></div></section>
-        <section className="panel leader-card"><div className="panel-head"><div><span className="panel-kicker">TOP SIGNAL</span><h2>Highest score now</h2></div></div><Link href="/token/neon-cat" className="leader-token"><TokenLogo symbol="NEON" color="#55e6a5" large /><div><strong>NEON</strong><small>Neon Cat · 18m old</small></div><ScoreBadge score={86} large /></Link><p><span>Why it stands out</span> Fast volume growth, broad buyer participation, and healthy liquidity relative to its size.</p></section>
+        <section className="panel radar-card"><div><span className="panel-kicker">CURRENT COVERAGE</span><h2>Market signals are live. On-chain checks come next.</h2><p>Price, volume, liquidity, pair age, and buy/sell activity now come from DEX Screener. Mint authority and holder concentration remain clearly marked as pending until Helius is connected.</p>{leader && <Link className="secondary-button" href={`/token/${leader.id}`}>Inspect a live score →</Link>}</div><div className="radar-visual"><i /><i /><i /><span>{leader?.score ?? '—'}<small>TOP SCORE</small></span></div></section>
+        {leader && <section className="panel leader-card"><div className="panel-head"><div><span className="panel-kicker">TOP LIVE SIGNAL</span><h2>Highest score in this set</h2></div></div><Link href={`/token/${leader.id}`} className="leader-token"><TokenLogo symbol={leader.symbol} color={leader.color} large /><div><strong>{leader.symbol}</strong><small>{leader.name} · {formatAge(leader.ageMinutes)} old</small></div><ScoreBadge score={leader.score} large /></Link><p><span>Why it stands out</span> This comparative score uses current activity and liquidity. It is not a recommendation or a return forecast.</p></section>}
       </div>
-      <p className="disclaimer">MemeRadar scores are informational signals, not financial advice or a prediction of returns. Always do your own research.</p>
+      <p className="disclaimer">Live data is supplied by DEX Screener and may be delayed or incomplete. MemeRadar scores are informational signals—not financial advice or return predictions.</p>
     </AppShell>
   );
 }

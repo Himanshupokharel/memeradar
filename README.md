@@ -1,18 +1,20 @@
 # MemeRadar V1
 
-MemeRadar is a dark, responsive research dashboard for exploring early Solana token activity. V1 uses realistic mock data, so every screen and interaction works immediately without API keys or paid infrastructure.
+MemeRadar is a dark, responsive research dashboard for exploring early Solana token activity. It now connects to DEX Screener for live Solana market candidates without requiring an API key. If that service is temporarily unavailable, the app clearly switches to realistic fallback data instead of breaking.
 
 The MemeRadar score is an informational signal. It is not financial advice, a return prediction, or an instruction to buy or sell. This project deliberately contains no auto-trading.
 
 ## What is already built
 
-- Dashboard with market summaries, a signal feed, a pre-trending table, and a clear score explanation
+- Dashboard with live market summaries, source status, a signal feed, and a clear score explanation
 - New Tokens screen with search, score, liquidity, age, and sorting filters
 - Pre-Trending screen with a transparent qualification path
 - Token Detail pages with metrics, activity, score breakdowns, and risk flags
 - Alerts screen where you can create, switch, and delete rules during the current browser session
 - Responsive layouts for desktop, tablet, and mobile
-- A provider boundary that lets live services replace mock data without rebuilding the interface
+- Live price, liquidity, volume, transaction, price-change, valuation, and pair-age data from DEX Screener
+- A 30-second server cache that reduces external requests
+- A provider boundary and fallback mode ready for Helius and Supabase
 
 ## Run it on your computer
 
@@ -57,24 +59,24 @@ MemeRadar/
 │   ├── TokenPrimitives.tsx      Scores, money, age, risks, pressure, charts
 │   └── AlertsManager.tsx        Interactive alert-rule builder
 ├── lib/
-│   ├── mock-data.ts             All fictional V1 token and alert data
+│   ├── mock-data.ts             Fallback token and sample alert data
 │   ├── types.ts                 The exact shape data must have
 │   ├── scoring.ts               Understandable score formula
-│   └── providers/               The replaceable data-source layer
+│   └── providers/               DEX Screener, fallback, and provider contract
 ├── public/                      Files the browser can load directly
 └── .env.example                 Names of future secret settings (no real keys)
 ```
 
 ### Why this structure matters
 
-The interface reads one consistent `Token` shape. Today, `mock-provider.ts` returns local mock tokens. Later, a live provider will fetch DEX Screener and Helius data, translate it into that same shape, and return it. The table, filters, dashboards, and detail screen do not need to know where the data came from.
+The interface reads one consistent `Token` shape. `dexscreener-provider.ts` discovers current Solana candidates, fetches their market pairs, translates the response into that shape, and calculates a comparative MemeRadar score. If a request fails, `mock-provider.ts` supplies fallback tokens. The screens do not need to know which provider produced the shape.
 
 ```text
-Today:   mock-data → mock provider ─┐
+DEX Screener → normalize + score ──┐
                                    ├→ Token shape → every screen
-Later:   DEX Screener + Helius ────┘
-                         ↓
-                  Supabase history
+API unavailable → mock fallback ───┘
+                         ↓ next
+              Helius + Supabase history
 ```
 
 ## What to learn, and when
@@ -101,7 +103,7 @@ Learn:
 
 Look at `lib/types.ts`, then compare it with one entry in `lib/mock-data.ts`. The type is the promise; the mock object fulfills that promise.
 
-### Step 3 — Connect DEX Screener
+### Step 3 — Understand the DEX Screener connection (complete)
 
 Learn:
 
@@ -109,7 +111,9 @@ Learn:
 - `fetch`, JSON, request limits, and error handling
 - Server-side versus browser-side code
 
-DEX Screener can provide pair discovery, prices, liquidity, volume, transactions, and pair age. Normalize its response inside `lib/providers/`; never reshape data inside a visual component.
+The app now receives pair discovery, prices, liquidity, volume, transactions, price changes, valuation, and pair age from DEX Screener. Read `lib/providers/dexscreener-provider.ts` from top to bottom. Notice that outside responses are normalized inside the provider rather than inside a visual component.
+
+The “New Tokens” screen currently means the newest pairs in MemeRadar’s candidate feed. Candidate discovery combines DEX Screener’s latest token profiles and active boosts; it is not a complete feed of every new Solana pool. This limitation is shown in the interface.
 
 ### Step 4 — Add Helius checks
 
@@ -134,10 +138,10 @@ Store token snapshots and alert rules in Supabase. Historical snapshots let you 
 
 ## Lowest-cost development path
 
-1. Keep using the included mock data while refining the product.
-2. Add public DEX Screener endpoints with caching before buying a plan.
+1. Use the current public DEX Screener connection and 30-second cache while validating the product.
+2. Keep fallback data so provider downtime never creates a blank dashboard.
 3. Start with Helius’s available entry tier and monitor usage.
-4. Use Supabase’s entry tier once data history is genuinely needed.
+4. Use Supabase’s entry tier once data history and background alerts are genuinely needed.
 5. Pay for higher limits only after real users repeatedly hit a measured limit.
 
 Pricing and API limits can change, so check each provider’s current official documentation before choosing a plan.
@@ -151,7 +155,9 @@ Pricing and API limits can change, so check each provider’s current official d
 - Participation: 25%
 - Safety: 20%
 
-This is intentionally understandable. Before using live data, define each input precisely and backtest it against stored historical snapshots. A score should remain explainable and should never be presented as certainty.
+This is intentionally understandable. Momentum, liquidity, and participation now use live DEX Screener fields. Safety currently uses only pair age, liquidity depth, and the liquidity-to-valuation ratio. Mint authority and holder concentration remain marked “pending” until Helius is added. The score should be backtested against stored historical snapshots before anyone treats it as useful evidence.
+
+The small momentum bars are an illustrative shape derived from the current five-minute price change and trade intensity. DEX Screener’s current pair response does not supply tick-by-tick history through the endpoints used here, so the interface labels this honestly.
 
 ## Useful commands
 
@@ -163,4 +169,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Keep V1 on mock data long enough to decide whether the screens answer the right questions. Then connect only DEX Screener, preserve raw responses for debugging, and show a visible “data delayed” state when the provider is unavailable. Add Helius and Supabase after that foundation is stable.
+Add Helius for mint authority, freeze authority, holder concentration, and wallet-activity checks. Then add Supabase snapshots so scores can be backtested and alert rules can run while the user is offline. Non-custodial Jupiter swaps and wallet signing should come only after those research and reliability layers are stable.

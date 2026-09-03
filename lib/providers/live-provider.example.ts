@@ -12,6 +12,9 @@ export function createLiveTokenProvider(config: { dexScreenerBaseUrl: string; he
   }
 
   return {
+    async getSnapshot() {
+      return { tokens: await loadTokens(), source: 'dexscreener', updatedAt: new Date().toISOString() };
+    },
     getTokens: loadTokens,
     async getToken(id) {
       return (await loadTokens()).find((token) => token.id === id);

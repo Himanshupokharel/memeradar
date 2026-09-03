@@ -25,7 +25,7 @@ export function Sparkline({ values, tone = 'green', large = false }: { values: n
   const min = Math.min(...values);
   const max = Math.max(...values);
   return (
-    <div className={`sparkline ${large ? 'sparkline-large' : ''} sparkline-${tone}`} aria-label="Recent price movement">
+    <div className={`sparkline ${large ? 'sparkline-large' : ''} sparkline-${tone}`} aria-label="Momentum shape derived from the current snapshot">
       {values.map((value, index) => {
         const height = 18 + ((value - min) / Math.max(1, max - min)) * 82;
         return <i key={`${value}-${index}`} style={{ height: `${height}%` }} />;
