@@ -22,6 +22,7 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Helius checks for mint authority, freeze authority, metadata mutability, and top token-account concentration
 - Backtesting screen with 15-minute, 1-hour, 6-hour, and 24-hour historical outcome windows
 - Score-band comparisons, completed-sample counts, median changes, and peak observations
+- Non-custodial buy/sell workspace powered by Jupiter, with Wallet Standard connection and approval inside the user’s wallet
 
 ## Run it on your computer
 
@@ -73,6 +74,7 @@ MemeRadar/
 │   ├── pre-trending/page.tsx    Pre-Trending (/pre-trending)
 │   ├── alerts/page.tsx          Alerts (/alerts)
 │   ├── backtesting/page.tsx     Historical Backtesting (/backtesting)
+│   ├── trade/[mint]/page.tsx    Wallet-confirmed Jupiter swap workspace
 │   └── token/[slug]/page.tsx    Any Token Detail page
 ├── components/                  Reusable interface pieces
 │   ├── AppShell.tsx             Sidebar, top bar, and page frame
@@ -201,6 +203,16 @@ The Helius webhook listens only for `CREATE_POOL` on verified Raydium and Pump A
 
 The background worker contains optional Telegram delivery, but it stays inactive unless `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are stored as private function settings. This deliberate pause prevents secrets from entering source code. Once those two values are connected and the updated worker is deployed, new matches can reach the chosen Telegram chat. Email or phone delivery can be considered later.
 
+### Step 11 — Understand wallet-confirmed swaps (complete)
+
+Learn:
+
+- A wallet connection shares a public address, not the seed phrase or private key.
+- A quote estimates the output, route, price impact, and fees before approval.
+- A signature is the wallet owner’s approval for one exact transaction.
+
+Live token pages link to a dedicated buy/sell workspace. Jupiter provides the embedded wallet connection, route, quote, and swap execution. The selected token is locked on one side of the form to reduce address mistakes, but the user must still verify the mint and amounts. MemeRadar adds no trading fee, cannot approve a transaction, and cannot access wallet secrets. Every swap is optional and separate from the MemeRadar score.
+
 ## Lowest-cost development path
 
 1. Use the current public DEX Screener connection, 15-second candidate discovery, and 3-second market rotation while validating the private product.
@@ -234,4 +246,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Let the 24/7 worker collect enough completed samples across the hybrid discovery set, watch Helius credit use, and then connect the prepared Telegram delivery with private credentials. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.
+Let the 24/7 worker collect enough completed samples across the hybrid discovery set, watch Helius credit use, and then connect the prepared Telegram delivery with private credentials. Before sharing the product with other people, add a legal review, clearer regional eligibility language, transaction analytics, and broader wallet/device testing. MemeRadar should never hold a user’s seed phrase or private key.
