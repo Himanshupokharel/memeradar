@@ -11,6 +11,7 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Pre-Trending screen with a transparent qualification path
 - Token Detail pages with saved price history, score breakdowns, market risks, and cached Helius checks
 - Persistent Alerts screen where you can create, pause, and delete rules saved in Supabase
+- Alert Inbox with unread counts, automatic refresh, token links, and read controls
 - Responsive layouts for desktop, tablet, and mobile
 - Live price, liquidity, volume, transaction, price-change, valuation, and pair-age data from DEX Screener
 - Automatic 3-second refresh for token discovery and market metrics while the app is visible
@@ -76,7 +77,8 @@ MemeRadar/
 │   ├── AppShell.tsx             Sidebar, top bar, and page frame
 │   ├── TokenTable.tsx           Searchable/filterable token table
 │   ├── TokenPrimitives.tsx      Scores, money, age, risks, pressure, charts
-│   └── AlertsManager.tsx        Interactive alert-rule builder
+│   ├── AlertsManager.tsx        Interactive alert-rule builder
+│   └── AlertInbox.tsx           Saved matches and read/unread controls
 ├── lib/
 │   ├── mock-data.ts             Fallback token and sample alert data
 │   ├── types.ts                 The exact shape data must have
@@ -179,9 +181,13 @@ This is a basic historical validation tool, not a trading simulation. It does no
 
 The database function used by the report lives in `supabase/backtest.sql`. It is restricted to the private server connection, so browser visitors cannot call it directly.
 
-### Step 8 — Add notification delivery (later)
+### Step 8 — Use the Alert Inbox (complete)
 
-The next alert improvement is optional email, Telegram, or phone delivery. The current version records matches inside MemeRadar but does not contact anyone outside the app.
+Every rule match is now visible in MemeRadar with the matching token, score, liquidity, age, time, and a direct analysis link. The inbox refreshes every 15 seconds and the top-bar badge displays unread matches. Read state is stored in Supabase, so it follows the private account rather than one browser.
+
+### Step 9 — Connect Telegram delivery (prepared, not connected)
+
+The background worker contains optional Telegram delivery, but it stays inactive unless `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are stored as private function settings. This deliberate pause prevents secrets from entering source code. Once those two values are connected and the updated worker is deployed, new matches can reach the chosen Telegram chat. Email or phone delivery can be considered later.
 
 ## Lowest-cost development path
 
@@ -216,4 +222,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Let the 24/7 worker collect enough completed samples to judge the score bands, then add optional external alert delivery. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.
+Let the 24/7 worker collect enough completed samples to judge the score bands, then connect the prepared Telegram delivery with private credentials. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.

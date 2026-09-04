@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { SearchBox } from './SearchBox';
 import { AutoRefresh } from './AutoRefresh';
 import { LiveNetworkStatus, LiveSidebarStatus } from './LiveSourceStatus';
+import { AlertBell } from './AlertBell';
 
 const navigation = [
   { id: 'dashboard', href: '/', icon: '⌁', label: 'Dashboard' },
@@ -35,7 +36,7 @@ export function AppShell({ active, children }: { active: string; children: React
           <SearchBox />
           <AutoRefresh />
           <LiveNetworkStatus />
-          <a className="icon-button" href="/alerts" aria-label="View alerts">♢<b>3</b></a>
+          <AlertBell />
           <div className="avatar" title="Demo account">MR</div>
         </header>
         <div className="content">{children}</div>

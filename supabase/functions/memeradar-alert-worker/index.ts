@@ -29,6 +29,8 @@ type StoredRule = {
 const DEX = 'https://api.dexscreener.com';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')?.replace(/\/$/, '');
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const telegramBotToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+const telegramChatId = Deno.env.get('TELEGRAM_CHAT_ID');
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));
 const number = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 
@@ -55,6 +57,21 @@ async function rest<T>(path: string, init: RequestInit & { prefer?: string } = {
   if (response.status === 204) return undefined as T;
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
+}
+
+async function sendTelegram(rule: StoredRule, token: WorkerToken) {
+  if (!telegramBotToken || !telegramChatId) return 'not_configured';
+  const response = await fetch(`https://api.telegram.org/bot${encodeURIComponent(telegramBotToken)}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: telegramChatId,
+      disable_web_page_preview: true,
+      text: `MemeRadar alert\n${rule.name}\n${token.symbol} matched · Score ${token.score} · Liquidity $${Math.round(token.liquidity).toLocaleString()} · Age ${token.ageMinutes}m\n\nInformational signal only. Review the token and risks before making any decision.`,
+    }),
+  });
+  if (!response.ok) throw new Error(`Telegram delivery returned ${response.status}`);
+  return 'sent';
 }
 
 function normalize(pair: Pair, imageUrl?: string): WorkerToken | undefined {
@@ -139,13 +156,22 @@ async function saveAndEvaluate(tokens: WorkerToken[]) {
       && token.ageMinutes <= number(conditions.maxAge || Number.MAX_SAFE_INTEGER));
     const lastTriggered = rule.last_triggered_at ? new Date(rule.last_triggered_at).getTime() : 0;
     if (!match || startedAt.getTime() - lastTriggered < 15 * 60_000) continue;
-    await rest('alert_events', {
-      method: 'POST', prefer: 'return=minimal', body: JSON.stringify({
+    const initialDelivery = telegramBotToken && telegramChatId ? 'pending' : 'not_configured';
+    const created = await rest<Array<{ id: string }>>('alert_events', {
+      method: 'POST', prefer: 'return=representation', body: JSON.stringify({
         rule_id: rule.id, mint_address: match.id, title: `${rule.name}: ${match.symbol} matched`,
         message: `Score ${match.score}, liquidity $${Math.round(match.liquidity).toLocaleString()}, age ${match.ageMinutes}m.`,
-        payload: { score: match.score, liquidity: match.liquidity, ageMinutes: match.ageMinutes, source: 'background_worker' },
+        payload: { score: match.score, liquidity: match.liquidity, ageMinutes: match.ageMinutes, source: 'background_worker', telegramDelivery: initialDelivery },
       }),
     });
+    if (initialDelivery === 'pending' && created[0]?.id) {
+      let telegramDelivery = 'failed';
+      try { telegramDelivery = await sendTelegram(rule, match); } catch (error) { console.error('Telegram alert delivery failed', error); }
+      await rest(`alert_events?id=eq.${encodeURIComponent(created[0].id)}`, {
+        method: 'PATCH', prefer: 'return=minimal',
+        body: JSON.stringify({ payload: { score: match.score, liquidity: match.liquidity, ageMinutes: match.ageMinutes, source: 'background_worker', telegramDelivery } }),
+      });
+    }
     await rest(`alert_rules?id=eq.${encodeURIComponent(rule.id)}`, {
       method: 'PATCH', prefer: 'return=minimal',
       body: JSON.stringify({ last_triggered_at: startedAt.toISOString(), match_count: number(rule.match_count) + 1 }),

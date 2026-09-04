@@ -80,6 +80,23 @@ export type AlertWorkerStatus = {
   lastStatus?: string;
 };
 
+export type AlertEvent = {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  mint?: string;
+  symbol: string;
+  tokenName: string;
+  imageUrl?: string;
+  title: string;
+  message: string;
+  score: number;
+  liquidity: number;
+  ageMinutes: number;
+  triggeredAt: string;
+  readAt?: string;
+};
+
 export type BacktestSignal = {
   mint: string;
   symbol: string;
