@@ -40,21 +40,22 @@ export function TokenTable({ data, title, kicker, initialQuery = '', compact = f
       </div>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Token</th><th>MR score</th><th>Market cap</th><th>Liquidity</th><th>5m volume</th><th>Age</th><th>Buy pressure</th><th title="Illustrative shape derived from current 5m change and trade intensity">Momentum*</th><th>Risk flags</th></tr></thead>
+          <thead><tr><th>Token</th><th>MR score</th><th>Market cap</th><th>Liquidity</th><th>5m volume</th><th>Age</th><th>Buy pressure</th><th title="Uses saved price, volume, participation, and liquidity observations when available">Momentum</th><th>Risk flags</th><th>Trade</th></tr></thead>
           <tbody>{filtered.map((token) => (
             <tr key={token.id}>
               <td><a className="token-cell" href={`/token/${token.id}`}><TokenLogo symbol={token.symbol} color={token.color} imageUrl={token.imageUrl} /><span><b>{token.symbol}</b><small>{token.name} · {token.contract}</small></span></a></td>
               <td><ScoreBadge score={token.score} /></td>
               <td>{formatMoney(token.marketCap)}</td><td>{formatMoney(token.liquidity)}</td><td>{formatMoney(token.volume5m)}</td><td>{formatAge(token.ageMinutes)}</td>
               <td><PressureBar value={token.buyPressure} /></td>
-              <td><Sparkline values={token.sparkline} tone={token.priceChange5m >= 0 ? 'green' : 'red'} /></td>
+              <td><div className="momentum-cell"><Sparkline values={token.sparkline} tone={token.advancedMomentum?.status === 'cooling' || (!token.advancedMomentum && token.priceChange5m < 0) ? 'red' : 'green'} /><small className={`momentum-${token.advancedMomentum?.status || 'collecting'}`}>{token.advancedMomentum?.status || 'collecting'}</small></div></td>
               <td><RiskFlags risks={token.risks.slice(0, 1)} compact /></td>
+              <td><div className="table-trade-actions"><a className="table-buy" href={`/trade/${token.id}?side=buy`}>Buy</a><a className="table-sell" href={`/trade/${token.id}?side=sell`}>Sell</a></div></td>
             </tr>
           ))}</tbody>
         </table>
       </div>
       {filtered.length === 0 && <div className="empty-state"><strong>No tokens match those filters</strong><span>Try lowering the score or liquidity requirement.</span></div>}
-      {!compact && <p className="table-note">* Momentum shape is derived from the current 5-minute change and trade intensity; it is not tick-level price history.</p>}
+      {!compact && <p className="table-note">Advanced momentum uses saved observations when at least three points exist. “Collecting” means there is not enough history yet; the signal is informational and not a return forecast.</p>}
     </section>
   );
 }

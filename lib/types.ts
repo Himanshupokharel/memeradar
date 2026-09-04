@@ -6,6 +6,18 @@ export type RiskFlag = {
   detail: string;
 };
 
+export type AdvancedMomentum = {
+  status: 'collecting' | 'accelerating' | 'steady' | 'cooling';
+  score: number;
+  confidence: number;
+  observationMinutes: number;
+  priceAccelerationPct: number;
+  volumeExpansion: number;
+  participationExpansion: number;
+  liquidityChangePct: number;
+  sparkline: number[];
+};
+
 export type Token = {
   id: string;
   name: string;
@@ -36,6 +48,7 @@ export type Token = {
     participation: number;
     safety: number;
   };
+  advancedMomentum?: AdvancedMomentum;
 };
 
 export type TokenSnapshot = {

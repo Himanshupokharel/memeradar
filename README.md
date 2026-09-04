@@ -24,6 +24,8 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Score-band comparisons, completed-sample counts, median changes, and peak observations
 - Permanent outcome labels with 2×–100× milestones, drawdown, lifecycle heuristics, and 1h/6h/24h/7d checkpoints
 - Adaptive follow-up recording: newest tokens every minute, then lower-frequency checks as each token ages
+- Experimental advanced momentum from saved price velocity, volume, participation, and liquidity observations
+- Direct Buy and Sell controls on every live token table row, with final approval inside the connected wallet
 - Non-custodial buy/sell workspace powered by Jupiter, with Wallet Standard connection and approval inside the user’s wallet
 
 ## Run it on your computer
@@ -228,11 +230,17 @@ Learn:
 
 The recorder now revisits tokens adaptively: every minute while they are under one hour old, every five minutes through six hours, every fifteen minutes through twenty-four hours, and hourly through seven days. Tokens already classified by the heuristic as dead or rugged are excluded from older follow-up cohorts. This keeps the most important early period detailed without wasting the free service allowance indefinitely.
 
-### Step 13 — Calibrate the score with evidence (active)
+### Step 13 — Add advanced momentum (complete, experimental)
+
+The app now compares several saved observations instead of relying only on one five-minute snapshot. The Advanced Momentum signal measures price acceleration, volume expansion, participation growth, and liquidity change. It includes a confidence percentage and stays labeled “collecting” until at least three usable observations exist.
+
+For now this signal is displayed beside the main score rather than silently changing that score. That separation makes it possible to test the new signal against permanent outcome labels before giving it real scoring weight.
+
+### Step 14 — Calibrate the score with evidence (active)
 
 The Backtesting screen now compares first observations across 15-minute, 1-hour, 6-hour, and 24-hour windows. It automatically groups scores of 70+ against the below-60 baseline, reports differences in median peak and +20% hit rate, and labels each window as collecting, early, or established. Both comparison groups need 30 completed observations before an early read and 100 each before the product calls the sample established. These are cautious product guardrails, not statistical proof or return predictions.
 
-The next scoring upgrade is advanced momentum: acceleration across several observations, volume expansion, participation growth, and liquidity change. Those inputs should be added only after enough checkpoint labels exist to test whether they improve separation from the baseline.
+The next scoring upgrade is percentile ranking: compare a token with other tokens observed under similar market conditions instead of treating every fixed threshold as equally meaningful. Advanced Momentum should receive main-score weight only after outcome labels show that it improves separation from the baseline.
 
 ## Lowest-cost development path
 

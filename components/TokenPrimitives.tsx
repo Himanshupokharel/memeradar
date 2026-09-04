@@ -1,3 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
+'use client';
+
 import type { RiskFlag } from '@/lib/types';
 
 export function formatMoney(value: number) {
@@ -18,7 +21,7 @@ export function ScoreBadge({ score, large = false }: { score: number; large?: bo
 }
 
 export function TokenLogo({ symbol, color, imageUrl, large = false }: { symbol: string; color: string; imageUrl?: string; large?: boolean }) {
-  return <span className={`token-logo ${imageUrl ? 'token-logo-image' : ''} ${large ? 'token-logo-large' : ''}`} style={{ backgroundColor: color, backgroundImage: imageUrl ? `url(${imageUrl})` : undefined }} aria-label={`${symbol} token artwork`}>{symbol.slice(0, 1)}</span>;
+  return <span className={`token-logo ${large ? 'token-logo-large' : ''}`} style={{ backgroundColor: color }} aria-label={`${symbol} token artwork`}><b>{symbol.slice(0, 1)}</b>{imageUrl && <img src={imageUrl} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}</span>;
 }
 
 export function Sparkline({ values, tone = 'green', large = false }: { values: number[]; tone?: 'green' | 'red'; large?: boolean }) {

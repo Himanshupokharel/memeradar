@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { tokens as fallbackTokens } from '@/lib/mock-data';
 import { tokenProvider } from '@/lib/providers/dexscreener-provider';
-import type { TokenSnapshot } from '@/lib/types';
+import type { AdvancedMomentum, Token, TokenSnapshot } from '@/lib/types';
 
 type LiveMarketContextValue = {
   snapshot: TokenSnapshot;
@@ -25,6 +25,13 @@ export function LiveMarketProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<LiveMarketContextValue['status']>('connecting');
   const [storageStatus, setStorageStatus] = useState<LiveMarketContextValue['storageStatus']>('connecting');
   const lastStoredAt = useRef(0);
+  const lastMomentumAt = useRef(0);
+  const momentumCache = useRef<Record<string, AdvancedMomentum>>({});
+
+  function withMomentum(token: Token) {
+    const momentum = momentumCache.current[token.id];
+    return momentum ? { ...token, advancedMomentum: momentum, sparkline: momentum.sparkline.length >= 3 ? momentum.sparkline : token.sparkline } : token;
+  }
 
   useEffect(() => {
     let stopped = false;
@@ -33,8 +40,19 @@ export function LiveMarketProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === 'visible') {
         const next = await tokenProvider.getSnapshot();
         if (!stopped) {
-          setSnapshot(next);
+          setSnapshot({ ...next, tokens: next.tokens.map(withMomentum) });
           setStatus(next.source === 'dexscreener' ? 'live' : 'fallback');
+          if (next.source === 'dexscreener' && Date.now() - lastMomentumAt.current >= 15_000) {
+            lastMomentumAt.current = Date.now();
+            const mints = next.tokens.slice(0, 60).map((token) => token.id).join(',');
+            void fetch(`/api/momentum?mints=${encodeURIComponent(mints)}`, { cache: 'no-store' })
+              .then(async (response) => response.ok ? response.json() as Promise<{ signals: Record<string, AdvancedMomentum> }> : { signals: {} })
+              .then((data) => {
+                if (stopped) return;
+                momentumCache.current = { ...momentumCache.current, ...data.signals };
+                setSnapshot((current) => ({ ...current, tokens: current.tokens.map(withMomentum) }));
+              }).catch(() => { /* Current market metrics remain available while history is collecting. */ });
+          }
           if (next.source === 'dexscreener' && Date.now() - lastStoredAt.current >= 60_000) {
             lastStoredAt.current = Date.now();
             setStorageStatus('saving');
