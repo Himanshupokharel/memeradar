@@ -22,6 +22,8 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Helius checks for mint authority, freeze authority, metadata mutability, and top token-account concentration
 - Backtesting screen with 15-minute, 1-hour, 6-hour, and 24-hour historical outcome windows
 - Score-band comparisons, completed-sample counts, median changes, and peak observations
+- Permanent outcome labels with 2×–100× milestones, drawdown, lifecycle heuristics, and 1h/6h/24h/7d checkpoints
+- Adaptive follow-up recording: newest tokens every minute, then lower-frequency checks as each token ages
 - Non-custodial buy/sell workspace powered by Jupiter, with Wallet Standard connection and approval inside the user’s wallet
 
 ## Run it on your computer
@@ -90,6 +92,7 @@ MemeRadar/
 │   └── server/                  Helius and Supabase connections (server only)
 ├── supabase/schema.sql          Rebuildable database structure
 ├── supabase/helius-discovery.sql  Migration for on-chain candidates
+├── supabase/outcome-labeling.sql  Permanent outcome labels and checkpoint logic
 ├── supabase/functions/          24/7 scanner and authenticated webhook receiver
 ├── public/                      Files the browser can load directly
 └── .env.example                 Names of future secret settings (no real keys)
@@ -212,6 +215,24 @@ Learn:
 - A signature is the wallet owner’s approval for one exact transaction.
 
 Live token pages link to a dedicated buy/sell workspace. Jupiter provides the embedded wallet connection, route, quote, and swap execution. The selected token is locked on one side of the form to reduce address mistakes, but the user must still verify the mint and amounts. MemeRadar adds no trading fee, cannot approve a transaction, and cannot access wallet secrets. Every swap is optional and separate from the MemeRadar score.
+
+### Step 12 — Build permanent outcome labels (complete)
+
+Learn:
+
+- A label records what happened after the first observation without claiming why it happened.
+- A checkpoint compares tokens at consistent ages such as 1 hour, 6 hours, 24 hours, and 7 days.
+- A lifecycle status is a rule-based heuristic, not a factual accusation about a project.
+
+`supabase/outcome-labeling.sql` creates one durable outcome record per token. It stores discovery, latest, peak, and trough measurements; maximum upside and drawdown; 2× through 100× milestones; time to the first milestones; and fixed-age checkpoints. The database refreshes a token’s label whenever a new snapshot arrives.
+
+The recorder now revisits tokens adaptively: every minute while they are under one hour old, every five minutes through six hours, every fifteen minutes through twenty-four hours, and hourly through seven days. Tokens already classified by the heuristic as dead or rugged are excluded from older follow-up cohorts. This keeps the most important early period detailed without wasting the free service allowance indefinitely.
+
+### Step 13 — Calibrate the score with evidence (active)
+
+The Backtesting screen now compares first observations across 15-minute, 1-hour, 6-hour, and 24-hour windows. It automatically groups scores of 70+ against the below-60 baseline, reports differences in median peak and +20% hit rate, and labels each window as collecting, early, or established. Both comparison groups need 30 completed observations before an early read and 100 each before the product calls the sample established. These are cautious product guardrails, not statistical proof or return predictions.
+
+The next scoring upgrade is advanced momentum: acceleration across several observations, volume expansion, participation growth, and liquidity change. Those inputs should be added only after enough checkpoint labels exist to test whether they improve separation from the baseline.
 
 ## Lowest-cost development path
 

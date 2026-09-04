@@ -91,6 +91,10 @@ export async function GET(request: Request) {
     const completed = signals.filter((row) => row.eligible);
     const changes = completed.flatMap((row) => row.horizonChangePct === undefined ? [] : [row.horizonChangePct]);
     const peaks = completed.flatMap((row) => row.peakChangePct === undefined ? [] : [row.peakChangePct]);
+    const highScore = summarizeBand('70+', signals.filter((row) => row.entryScore >= 70));
+    const baseline = summarizeBand('Below 60', signals.filter((row) => row.entryScore < 60));
+    const sampleTarget = 100;
+    const comparableSamples = Math.min(highScore.eligible, baseline.eligible);
     const report: BacktestReport = {
       horizonMinutes,
       generatedAt: new Date().toISOString(),
@@ -103,6 +107,19 @@ export async function GET(request: Request) {
         medianPeakPct: round(median(peaks)),
         peak20Rate: peaks.length ? round((peaks.filter((value) => value >= 20).length / peaks.length) * 100) : null,
         oldestEntryAt: signals.at(-1)?.entryAt,
+      },
+      calibration: {
+        readiness: comparableSamples >= sampleTarget ? 'established' : comparableSamples >= 30 ? 'early' : 'collecting',
+        highScoreEligible: highScore.eligible,
+        baselineEligible: baseline.eligible,
+        sampleTarget,
+        highScoreMedianChangePct: highScore.medianChangePct,
+        highScoreMedianPeakPct: highScore.medianPeakPct,
+        highScorePeak20Rate: highScore.peak20Rate,
+        medianPeakUpliftPct: highScore.medianPeakPct === null || baseline.medianPeakPct === null
+          ? null : round(highScore.medianPeakPct - baseline.medianPeakPct),
+        peak20UpliftPoints: highScore.peak20Rate === null || baseline.peak20Rate === null
+          ? null : round(highScore.peak20Rate - baseline.peak20Rate),
       },
       bands: [
         summarizeBand('80–100', signals.filter((row) => row.entryScore >= 80)),

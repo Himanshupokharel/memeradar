@@ -28,6 +28,7 @@ type StoredRule = {
 };
 
 type OnchainCandidate = { mint_address: string; last_detected_at: string };
+type OutcomeCandidate = { mint_address: string };
 
 const DEX = 'https://api.dexscreener.com';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')?.replace(/\/$/, '');
@@ -111,8 +112,18 @@ function normalize(pair: Pair, imageUrl?: string, fromHelius = false): WorkerTok
 
 async function collectTokens() {
   const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
-  const [onchain, ...results] = await Promise.all([
+  const minute = new Date().getUTCMinutes();
+  const followupPolicy = minute === 0
+    ? { ageMinutes: 7 * 24 * 60, limit: 240 }
+    : minute % 15 === 0
+      ? { ageMinutes: 24 * 60, limit: 210 }
+      : minute % 5 === 0
+        ? { ageMinutes: 6 * 60, limit: 180 }
+        : { ageMinutes: 60, limit: 150 };
+  const followupSince = new Date(Date.now() - followupPolicy.ageMinutes * 60_000).toISOString();
+  const [onchain, followups, ...results] = await Promise.all([
     rest<OnchainCandidate[]>(`discovery_candidates?last_detected_at=gte.${encodeURIComponent(since)}&select=mint_address,last_detected_at&order=last_detected_at.desc&limit=30`).catch(() => []),
+    rest<OutcomeCandidate[]>(`token_outcomes?first_observed_at=gte.${encodeURIComponent(followupSince)}&lifecycle_status=in.(collecting,active)&select=mint_address&order=latest_observed_at.asc&limit=${followupPolicy.limit}`).catch(() => []),
     getJson<DiscoveryItem[]>(`${DEX}/token-profiles/latest/v1`),
     getJson<DiscoveryItem[]>(`${DEX}/community-takeovers/latest/v1`),
     getJson<DiscoveryItem[]>(`${DEX}/ads/latest/v1`),
@@ -123,10 +134,14 @@ async function collectTokens() {
     ? items.filter((item) => item.chainId === 'solana' && item.tokenAddress)
     : []);
   const heliusAddresses = new Set(onchain.map((candidate) => candidate.mint_address));
-  const addresses = [...new Set([
+  const liveDiscovery = [...new Set([
     ...heliusAddresses,
     ...discovery.map((item) => item.tokenAddress as string),
-  ])].slice(0, 60);
+  ])].slice(0, 120);
+  const addresses = [...new Set([
+    ...liveDiscovery,
+    ...followups.map((candidate) => candidate.mint_address),
+  ])].slice(0, 300);
   if (!addresses.length) throw new Error('No Solana candidates were returned');
   const images = new Map(discovery.filter((item) => item.icon?.startsWith('https://')).map((item) => [item.tokenAddress as string, item.icon as string]));
   const batches = Array.from({ length: Math.ceil(addresses.length / 30) }, (_, index) => addresses.slice(index * 30, index * 30 + 30));

@@ -138,6 +138,50 @@ export type BacktestBand = {
   peak20Rate: number | null;
 };
 
+export type OutcomeLabel = {
+  mint: string;
+  firstObservedAt: string;
+  latestObservedAt: string;
+  observationMinutes: number;
+  snapshotCount: number;
+  discoveryPrice: number;
+  discoveryMarketCap: number;
+  discoveryLiquidity: number;
+  latestPrice: number;
+  latestMarketCap: number;
+  latestLiquidity: number;
+  peakPrice: number;
+  peakMarketCap: number;
+  maximumUpsidePct: number;
+  maximumDrawdownPct: number;
+  reachedMultiples: number[];
+  timeTo2xMinutes?: number;
+  timeTo5xMinutes?: number;
+  timeTo10xMinutes?: number;
+  completedCheckpoints: Array<'1h' | '6h' | '24h' | '7d'>;
+  lifecycleStatus: 'collecting' | 'active' | 'dead' | 'rugged';
+  labelVersion: string;
+};
+
+export type OutcomeReport = {
+  generatedAt: string;
+  overview: {
+    labeled: number;
+    reached2x: number;
+    reached5x: number;
+    reached10x: number;
+    dead: number;
+    rugged: number;
+    completed1h: number;
+    completed6h: number;
+    completed24h: number;
+    completed7d: number;
+    medianMaximumUpsidePct: number | null;
+    medianMaximumDrawdownPct: number | null;
+  };
+  labels: OutcomeLabel[];
+};
+
 export type BacktestReport = {
   horizonMinutes: number;
   generatedAt: string;
@@ -150,6 +194,17 @@ export type BacktestReport = {
     medianPeakPct: number | null;
     peak20Rate: number | null;
     oldestEntryAt?: string;
+  };
+  calibration: {
+    readiness: 'collecting' | 'early' | 'established';
+    highScoreEligible: number;
+    baselineEligible: number;
+    sampleTarget: number;
+    highScoreMedianChangePct: number | null;
+    highScoreMedianPeakPct: number | null;
+    highScorePeak20Rate: number | null;
+    medianPeakUpliftPct: number | null;
+    peak20UpliftPoints: number | null;
   };
   bands: BacktestBand[];
   signals: BacktestSignal[];

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { tokenProvider } from '@/lib/providers/dexscreener-provider';
-import type { HistoricalPoint, OnchainRiskReport, Token } from '@/lib/types';
+import type { HistoricalPoint, OnchainRiskReport, OutcomeLabel, Token } from '@/lib/types';
 import { MetricCard } from './MetricCard';
 import { formatAge, formatMoney, PressureBar, RiskFlags, ScoreBadge, Sparkline, TokenLogo } from './TokenPrimitives';
 import { useLiveMarket } from './LiveMarketProvider';
@@ -22,6 +22,7 @@ export function TokenDetailContent({ slug }: { slug: string }) {
   const [riskState, setRiskState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [history, setHistory] = useState<HistoricalPoint[]>([]);
   const [historyState, setHistoryState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [outcome, setOutcome] = useState<OutcomeLabel>();
   const discovered = snapshot.tokens.find((token) => token.id.toLowerCase() === slug.toLowerCase());
   const token = discovered || directToken;
   const mint = token?.source === 'dexscreener' ? token.id : '';
@@ -43,6 +44,16 @@ export function TokenDetailContent({ slug }: { slug: string }) {
       })
       .then((data) => { if (active) { setRiskReport(data.report); setRiskState('ready'); } })
       .catch(() => { if (active) setRiskState('unavailable'); });
+    return () => { active = false; };
+  }, [mint]);
+
+  useEffect(() => {
+    if (!mint) return;
+    let active = true;
+    void fetch(`/api/outcomes?mint=${encodeURIComponent(mint)}`, { cache: 'no-store' })
+      .then(async (response) => response.ok ? response.json() as Promise<{ label: OutcomeLabel | null }> : { label: null })
+      .then((data) => { if (active && data.label) setOutcome(data.label); })
+      .catch(() => { /* Outcome labels are supplementary to live research. */ });
     return () => { active = false; };
   }, [mint]);
 
@@ -85,6 +96,7 @@ export function TokenDetailContent({ slug }: { slug: string }) {
     </section>
     <div className="metric-grid detail-metrics"><MetricCard label="Market cap / FDV" value={formatMoney(token.marketCap)} note="Provider-reported valuation" /><MetricCard label="Liquidity" value={formatMoney(token.liquidity)} note={token.marketCap ? `${((token.liquidity / token.marketCap) * 100).toFixed(1)}% of valuation` : 'Valuation ratio unavailable'} /><MetricCard label="5m volume" value={formatMoney(token.volume5m)} note={`${formatMoney(token.volume1h)} in 1 hour`} tone="up" /><MetricCard label="Pair age" value={formatAge(token.ageMinutes)} note={riskState === 'ready' ? `Helius safety ${riskReport?.riskScore}/100` : riskState === 'loading' ? 'Checking on-chain risk…' : 'Helius check unavailable'} /></div>
     <div className="detail-grid"><section className="panel chart-card"><div className="panel-head"><div><span className="panel-kicker">MARKET ACTIVITY</span><h2>{historicalSparkline.length ? 'Saved price history' : 'Current 5-minute momentum'}</h2></div><span className="result-count">{historyLabel}</span></div><div className="chart-readout"><div><span>BUY PRESSURE</span><PressureBar value={token.buyPressure} /></div><div><span>TRADES</span><strong>{token.buyers5m + token.sellers5m}</strong><small>{token.buyers5m} buys · {token.sellers5m} sells</small></div></div><Sparkline values={chartValues} tone={token.priceChange5m >= 0 ? 'green' : 'red'} large /><p className="chart-note">{historicalSparkline.length ? `Actual minute snapshots from ${new Date(history[0].capturedAt).toLocaleTimeString()} to ${new Date(history.at(-1)?.capturedAt || '').toLocaleTimeString()}.` : 'MemeRadar is collecting minute snapshots. Until two points exist, this shape is derived from current five-minute market activity.'}</p></section><section className="panel breakdown-card"><div className="panel-head"><div><span className="panel-kicker">TRANSPARENT SCORE</span><h2>Why {token.score}?</h2></div></div><div className="breakdown-list">{Object.entries(token.scoreBreakdown).map(([label, value]) => <div key={label}><span>{label}</span><div><i style={{ width: `${value}%` }} /></div><b>{value}</b></div>)}</div><p>Signals are weighted and normalized from 0–100. High activity cannot fully offset severe safety risks.</p></section></div>
+    {outcome && <section className="panel token-outcome-panel"><div className="panel-head"><div><span className="panel-kicker">RECORDED OUTCOME · {outcome.labelVersion.toUpperCase()}</span><h2>What happened after discovery?</h2></div><span className={`outcome-status outcome-${outcome.lifecycleStatus}`}>{outcome.lifecycleStatus}</span></div><div className="token-outcome-grid"><div><span>Discovery market cap</span><strong>{formatMoney(outcome.discoveryMarketCap)}</strong></div><div><span>Peak market cap</span><strong>{formatMoney(outcome.peakMarketCap)}</strong></div><div><span>Maximum upside</span><strong className="positive">+{outcome.maximumUpsidePct.toFixed(1)}%</strong></div><div><span>Maximum drawdown</span><strong className="negative">-{outcome.maximumDrawdownPct.toFixed(1)}%</strong></div></div><div className="outcome-ledger"><span>{outcome.snapshotCount.toLocaleString()} snapshots · {formatAge(outcome.observationMinutes)} observed</span><div>{[2, 5, 10, 25, 50, 100].map((multiple) => <b className={outcome.reachedMultiples.includes(multiple) ? 'reached' : ''} key={multiple}>{multiple}×</b>)}</div></div><p className="table-note">Milestones use saved provider prices. They do not prove that the full position could have been sold at the peak.</p></section>}
     <section className="panel risk-panel"><div className="panel-head"><div><span className="panel-kicker">HELIUS + MARKET CHECKS</span><h2>Risk checks</h2></div><span className={`result-count risk-state-${riskState}`}>{riskState === 'ready' ? `ON-CHAIN ${riskReport?.riskScore}/100` : riskState === 'loading' ? 'CHECKING SOLANA…' : 'HELIUS UNAVAILABLE'}</span></div>{riskState === 'loading' && <p className="risk-loading">Reading the Solana mint account and largest token accounts…</p>}{riskState === 'unavailable' && <p className="risk-loading risk-error">Market checks remain visible. The app will retry Helius when this page is opened again.</p>}<div className="risk-grid">{risks.map((risk, index) => <article key={`${risk.label}-${index}`}><RiskFlags risks={[risk]} /><p>{risk.detail}</p></article>)}</div></section>
     <div className="detail-footer"><p><strong>What should I do with this?</strong> Use the score to decide what deserves deeper research. Verify the contract, pool liquidity, ownership distribution, and creator history independently.</p><div className="detail-actions">{token.externalUrl && <a className="secondary-button" href={token.externalUrl} target="_blank" rel="noreferrer">View on DEX Screener ↗</a>}<a className="secondary-button" href="/alerts">Create a similar rule</a>{live && <a className="primary-button" href={`/trade/${token.id}`}>Buy or sell</a>}</div></div>
     <p className="disclaimer">Market figures come from DEX Screener. Helius checks are informational on-chain observations, not guarantees. Any swap requires approval inside the user’s wallet and is routed by Jupiter. MemeRadar does not forecast returns or auto-trade.</p>

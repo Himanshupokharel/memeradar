@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { BacktestReport } from '@/lib/types';
+import type { BacktestReport, OutcomeReport } from '@/lib/types';
 import { MetricCard } from './MetricCard';
 import { ScoreBadge, TokenLogo, formatMoney } from './TokenPrimitives';
 
@@ -30,9 +30,15 @@ function horizonLabel(minutes: number) {
   return horizons.find((item) => item.minutes === minutes)?.label || `${minutes}m`;
 }
 
+function points(value: number | null) {
+  if (value === null) return '—';
+  return `${value > 0 ? '+' : ''}${value.toFixed(1)} pts`;
+}
+
 export function BacktestingContent() {
   const [horizon, setHorizon] = useState(60);
   const [report, setReport] = useState<BacktestReport | null>(null);
+  const [outcomes, setOutcomes] = useState<OutcomeReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -50,6 +56,15 @@ export function BacktestingContent() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [horizon]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/outcomes', { cache: 'no-store', signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() as Promise<OutcomeReport> : null)
+      .then((data) => { if (data) setOutcomes(data); })
+      .catch(() => { /* Backtesting remains usable while labels reconnect. */ });
+    return () => controller.abort();
+  }, []);
 
   function changeHorizon(minutes: number) {
     if (minutes === horizon) return;
@@ -74,6 +89,18 @@ export function BacktestingContent() {
     {loading && <div className="backtest-message"><span className="live-dot" /><strong>Calculating completed {horizonLabel(horizon)} observations…</strong></div>}
 
     {!loading && report && <>
+      {outcomes && <section className="panel outcome-panel">
+        <div className="panel-head"><div><span className="panel-kicker">OUTCOME LABELING ENGINE · V0.1</span><h2>Structured truth from saved snapshots</h2></div><span className="result-count">{outcomes.overview.labeled.toLocaleString()} TOKENS LABELED</span></div>
+        <div className="outcome-milestones">
+          <div><span>Reached 2×</span><strong>{outcomes.overview.reached2x}</strong></div>
+          <div><span>Reached 5×</span><strong>{outcomes.overview.reached5x}</strong></div>
+          <div><span>Reached 10×</span><strong>{outcomes.overview.reached10x}</strong></div>
+          <div><span>Rug heuristic</span><strong className="negative">{outcomes.overview.rugged}</strong></div>
+        </div>
+        <div className="checkpoint-strip"><span>LIFECYCLE CHECKPOINTS</span><b>1h <i>{outcomes.overview.completed1h}</i></b><b>6h <i>{outcomes.overview.completed6h}</i></b><b>24h <i>{outcomes.overview.completed24h}</i></b><b>7d <i>{outcomes.overview.completed7d}</i></b></div>
+        <p className="table-note">Each label preserves discovery value, peak value, maximum upside, maximum drawdown, milestone times, and lifecycle status. “Dead” and “rugged” are transparent data heuristics, not legal or factual accusations.</p>
+      </section>}
+
       <div className="metric-grid metric-grid-compact">
         <MetricCard label="First observations" value={report.overview.tracked.toLocaleString()} note={`${report.overview.snapshotCount.toLocaleString()} saved snapshots`} />
         <MetricCard label="Completed samples" value={report.overview.eligible.toLocaleString()} note={`${report.overview.collecting} still collecting ${horizonLabel(horizon)} data`} tone={report.overview.eligible >= 10 ? 'up' : 'warn'} />
@@ -82,6 +109,23 @@ export function BacktestingContent() {
       </div>
 
       {report.overview.eligible < 10 && <div className="backtest-readiness"><span>COLLECTING EVIDENCE</span><p><strong>{report.overview.eligible} completed samples</strong> is too small for a reliable conclusion. The 24/7 worker will make this report more useful as history grows.</p></div>}
+
+      <section className="panel calibration-panel">
+        <div className="panel-head"><div><span className="panel-kicker">AUTOMATIC CALIBRATION CHECK</span><h2>Do high scores separate from the baseline?</h2></div><span className={`calibration-state calibration-${report.calibration.readiness}`}>{report.calibration.readiness}</span></div>
+        <div className="calibration-grid">
+          <div><span>70+ completed</span><strong>{report.calibration.highScoreEligible}<small> / {report.calibration.sampleTarget} target</small></strong></div>
+          <div><span>Below 60 completed</span><strong>{report.calibration.baselineEligible}<small> / {report.calibration.sampleTarget} target</small></strong></div>
+          <div><span>Median-peak difference</span><strong className={percentTone(report.calibration.medianPeakUpliftPct)}>{formatPercent(report.calibration.medianPeakUpliftPct)}</strong></div>
+          <div><span>+20% hit-rate difference</span><strong className={percentTone(report.calibration.peak20UpliftPoints)}>{points(report.calibration.peak20UpliftPoints)}</strong></div>
+        </div>
+        <div className="calibration-summary">
+          <div><i style={{ width: `${Math.min(100, (Math.min(report.calibration.highScoreEligible, report.calibration.baselineEligible) / report.calibration.sampleTarget) * 100)}%` }} /></div>
+          {report.calibration.readiness === 'collecting' && <p><strong>Not enough comparable samples yet.</strong> Keep the current score unchanged while the worker collects at least 30 completed 70+ and below-60 observations for this window.</p>}
+          {report.calibration.readiness === 'early' && <p><strong>Early comparison only.</strong> The direction is visible, but MemeRadar will not call it established until both groups reach {report.calibration.sampleTarget} completed observations.</p>}
+          {report.calibration.readiness === 'established' && <p><strong>Sample target reached.</strong> Review whether both uplift measures remain positive across several days before changing score weights.</p>}
+        </div>
+        <p className="table-note">The 100-sample target is a product-readiness guardrail, not statistical proof. Median end change for 70+ scores is currently {formatPercent(report.calibration.highScoreMedianChangePct)}; peaks do not represent a guaranteed sellable return.</p>
+      </section>
 
       <section className="panel backtest-bands">
         <div className="panel-head"><div><span className="panel-kicker">SCORE COMPARISON</span><h2>What happened by first MemeRadar score?</h2></div><span className="result-count">{horizonLabel(horizon)} WINDOW</span></div>
