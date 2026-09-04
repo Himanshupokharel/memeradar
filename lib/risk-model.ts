@@ -14,11 +14,12 @@ export type RiskFacts = {
 
 type Evidence = OnchainRiskReport['evidence'][number];
 
-function riskLevel(score: number): OnchainRiskReport['riskLevel'] {
-  if (score >= 85) return 'lower';
-  if (score >= 65) return 'moderate';
-  if (score >= 40) return 'elevated';
-  return 'critical';
+function riskLevel(score: number, evidence: Evidence[]): OnchainRiskReport['riskLevel'] {
+  const dangerCount = evidence.filter((item) => item.status === 'danger').length;
+  if (score < 40 || dangerCount >= 2) return 'critical';
+  if (score < 65 || dangerCount === 1) return 'elevated';
+  if (score < 85 || evidence.some((item) => item.status === 'warning')) return 'moderate';
+  return 'lower';
 }
 
 function flagFromEvidence(evidence: Evidence): RiskFlag {
@@ -110,7 +111,7 @@ export function buildRiskReport(mint: string, checkedAt: string, facts: RiskFact
     mint,
     checkedAt,
     riskScore,
-    riskLevel: riskLevel(riskScore),
+    riskLevel: riskLevel(riskScore, evidence),
     confidence,
     confidenceReason,
     checksCompleted,
