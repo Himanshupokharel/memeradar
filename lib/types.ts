@@ -53,6 +53,7 @@ export type TokenSnapshot = {
       ads: number;
       latestBoosts: number;
       topBoosts: number;
+      helius: number;
     };
   };
 };

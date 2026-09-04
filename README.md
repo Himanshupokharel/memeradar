@@ -14,7 +14,8 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Alert Inbox with unread counts, automatic refresh, token links, and read controls
 - Responsive layouts for desktop, tablet, and mobile
 - Live price, liquidity, volume, transaction, price-change, valuation, and pair-age data from DEX Screener
-- Five-channel discovery refreshed every 15 seconds, with market metrics rotating every 3 seconds while the app is visible
+- Hybrid discovery: five DEX Screener channels plus authenticated Helius `CREATE_POOL` events for verified Raydium and Pump AMM programs
+- Candidate discovery refreshed every 15 seconds, with market metrics rotating every 3 seconds while the app is visible
 - Token artwork from the same DEX Screener records, with a generated letter fallback when no artwork is supplied
 - Minute-by-minute market snapshots saved by a 24/7 Supabase background worker
 - Alert matching against each saved minute snapshot, with match counts and a 15-minute repeat guard
@@ -86,20 +87,21 @@ MemeRadar/
 │   ├── providers/               DEX Screener, fallback, and provider contract
 │   └── server/                  Helius and Supabase connections (server only)
 ├── supabase/schema.sql          Rebuildable database structure
+├── supabase/helius-discovery.sql  Migration for on-chain candidates
+├── supabase/functions/          24/7 scanner and authenticated webhook receiver
 ├── public/                      Files the browser can load directly
 └── .env.example                 Names of future secret settings (no real keys)
 ```
 
 ### Why this structure matters
 
-The interface reads one consistent `Token` shape. In the current owner-only release, `LiveMarketProvider.tsx` refreshes the DEX Screener discovery pool every 15 seconds and rotates market updates through that pool every three seconds. A Supabase Edge Function independently repeats the expanded discovery every minute, saves history, and evaluates alerts even when every browser is closed. A Token Detail page asks a private endpoint for a cached Helius risk report. Real secret keys never enter browser code.
+The interface reads one consistent `Token` shape. In the current owner-only release, Helius pushes new Raydium and Pump AMM pool events into a private Supabase candidate queue. `LiveMarketProvider.tsx` combines that queue with five DEX Screener discovery channels every 15 seconds and rotates market updates through the result every three seconds. A Supabase Edge Function independently repeats the expanded discovery every minute, saves history, and evaluates alerts even when every browser is closed. A Token Detail page asks a private endpoint for a cached Helius risk report. Real secret keys never enter browser code.
 
 ```text
-DEX Screener → 15-second discovery + 3-second market rotation → every screen
-       │                               └→ Helius risk endpoint → cached check
-       │ every minute, around the clock
-       ▼
-Supabase Edge Function → snapshots → real history + persistent alert matching
+Helius CREATE_POOL webhook → private candidate queue ┐
+DEX Screener discovery channels ─────────────────────┼→ 3-second market rotation → every screen
+                                                     └→ 24/7 worker → history + alert matching
+Token Detail page → Helius risk endpoint → cached on-chain check
 
 If DEX Screener is unavailable → clearly labeled mock fallback
 ```
@@ -140,7 +142,7 @@ The app now receives pair discovery, prices, liquidity, volume, transactions, pr
 
 This aggressive polling is suitable for the current owner-only release and remains under the documented limits for one active user. Before sharing the site with many concurrent users, move polling into a shared scheduled cache so visitor count does not multiply requests.
 
-The “New Tokens” screen currently means the newest pairs in MemeRadar’s expanded candidate feed. The discovery coverage panel shows how many candidates each official channel contributed and how long one full market rotation takes. It is still not a complete feed of every newly created Solana pool. True block-level discovery requires monitoring DEX programs through a service such as Helius and is a later upgrade.
+The “New Tokens” screen means the newest pairs in MemeRadar’s hybrid candidate feed. The discovery coverage panel shows how many candidates each source contributed and how long one full market rotation takes. Helius adds near-real-time pool creation events for the verified Pump AMM, Raydium CPMM, Raydium CLMM, and legacy Raydium AMM v4 programs. DEX Screener then supplies usable market data and artwork as soon as it indexes each pair. This is broader and faster, but it is not a guarantee that every Solana venue or every pool will be indexed.
 
 ### Step 4 — Understand Helius checks (complete)
 
@@ -185,7 +187,17 @@ The database function used by the report lives in `supabase/backtest.sql`. It is
 
 Every rule match is now visible in MemeRadar with the matching token, score, liquidity, age, time, and a direct analysis link. The inbox refreshes every 15 seconds and the top-bar badge displays unread matches. Read state is stored in Supabase, so it follows the private account rather than one browser.
 
-### Step 9 — Connect Telegram delivery (prepared, not connected)
+### Step 9 — Understand real-time pool discovery (complete)
+
+Learn:
+
+- A webhook is a secure message one service pushes to another when an event happens.
+- A program address identifies the on-chain application that created the pool.
+- Idempotency means the same delivery can safely arrive twice without creating duplicate records.
+
+The Helius webhook listens only for `CREATE_POOL` on verified Raydium and Pump AMM program addresses. It sends an authentication header that the Supabase receiver checks before accepting data. Candidate mints are deduplicated in `discovery_candidates`, then enriched by DEX Screener. Helius notes that webhook configuration changes can take up to two minutes and each delivered event uses credits, so check the Helius usage screen occasionally.
+
+### Step 10 — Connect Telegram delivery (prepared, not connected)
 
 The background worker contains optional Telegram delivery, but it stays inactive unless `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are stored as private function settings. This deliberate pause prevents secrets from entering source code. Once those two values are connected and the updated worker is deployed, new matches can reach the chosen Telegram chat. Email or phone delivery can be considered later.
 
@@ -222,4 +234,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Let the 24/7 worker collect enough completed samples across the expanded discovery set, then connect the prepared Telegram delivery with private credentials. After that, evaluate block-level Helius pool discovery only if the extra webhook-credit usage is justified. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.
+Let the 24/7 worker collect enough completed samples across the hybrid discovery set, watch Helius credit use, and then connect the prepared Telegram delivery with private credentials. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.

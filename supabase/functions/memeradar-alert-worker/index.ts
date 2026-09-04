@@ -15,6 +15,7 @@ type Pair = {
 
 type WorkerToken = {
   id: string; name: string; symbol: string; imageUrl?: string; externalUrl?: string; pairAddress?: string;
+  discoverySource: 'dexscreener' | 'helius+dexscreener';
   price: number; marketCap: number; liquidity: number; volume5m: number; volume1h: number;
   buyers5m: number; sellers5m: number; buyPressure: number; ageMinutes: number; score: number;
   scoreBreakdown: { momentum: number; liquidity: number; participation: number; safety: number };
@@ -25,6 +26,8 @@ type StoredRule = {
   conditions: { score?: number; liquidity?: number; maxAge?: number } | null;
   last_triggered_at: string | null; match_count: number;
 };
+
+type OnchainCandidate = { mint_address: string; last_detected_at: string };
 
 const DEX = 'https://api.dexscreener.com';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')?.replace(/\/$/, '');
@@ -74,7 +77,7 @@ async function sendTelegram(rule: StoredRule, token: WorkerToken) {
   return 'sent';
 }
 
-function normalize(pair: Pair, imageUrl?: string): WorkerToken | undefined {
+function normalize(pair: Pair, imageUrl?: string, fromHelius = false): WorkerToken | undefined {
   const id = pair.baseToken?.address;
   const symbol = pair.baseToken?.symbol;
   if (!id || !symbol || !pair.pairCreatedAt) return;
@@ -100,23 +103,30 @@ function normalize(pair: Pair, imageUrl?: string): WorkerToken | undefined {
   const score = Math.round(scoreBreakdown.momentum * .3 + scoreBreakdown.liquidity * .25 + scoreBreakdown.participation * .25 + scoreBreakdown.safety * .2);
   return {
     id, name: pair.baseToken?.name || symbol, symbol: symbol.slice(0, 20), imageUrl: imageUrl || pair.info?.imageUrl || undefined,
+    discoverySource: fromHelius ? 'helius+dexscreener' : 'dexscreener',
     externalUrl: pair.url, pairAddress: pair.pairAddress, price: number(pair.priceUsd), marketCap, liquidity,
     volume5m, volume1h, buyers5m, sellers5m, buyPressure, ageMinutes, score, scoreBreakdown,
   };
 }
 
 async function collectTokens() {
-  const results = await Promise.allSettled([
+  const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+  const [onchain, ...results] = await Promise.all([
+    rest<OnchainCandidate[]>(`discovery_candidates?last_detected_at=gte.${encodeURIComponent(since)}&select=mint_address,last_detected_at&order=last_detected_at.desc&limit=30`).catch(() => []),
     getJson<DiscoveryItem[]>(`${DEX}/token-profiles/latest/v1`),
     getJson<DiscoveryItem[]>(`${DEX}/community-takeovers/latest/v1`),
     getJson<DiscoveryItem[]>(`${DEX}/ads/latest/v1`),
     getJson<DiscoveryItem[]>(`${DEX}/token-boosts/latest/v1`),
     getJson<DiscoveryItem[]>(`${DEX}/token-boosts/top/v1`),
-  ]);
-  const discovery = results.flatMap((result) => result.status === 'fulfilled' && Array.isArray(result.value)
-    ? result.value.filter((item) => item.chainId === 'solana' && item.tokenAddress)
+  ].map((promise) => promise.catch(() => [])));
+  const discovery = results.flatMap((items) => Array.isArray(items)
+    ? items.filter((item) => item.chainId === 'solana' && item.tokenAddress)
     : []);
-  const addresses = [...new Set(discovery.map((item) => item.tokenAddress as string))].slice(0, 60);
+  const heliusAddresses = new Set(onchain.map((candidate) => candidate.mint_address));
+  const addresses = [...new Set([
+    ...heliusAddresses,
+    ...discovery.map((item) => item.tokenAddress as string),
+  ])].slice(0, 60);
   if (!addresses.length) throw new Error('No Solana candidates were returned');
   const images = new Map(discovery.filter((item) => item.icon?.startsWith('https://')).map((item) => [item.tokenAddress as string, item.icon as string]));
   const batches = Array.from({ length: Math.ceil(addresses.length / 30) }, (_, index) => addresses.slice(index * 30, index * 30 + 30));
@@ -129,7 +139,11 @@ async function collectTokens() {
     const existing = best.get(address);
     if (!existing || number(pair.liquidity?.usd) > number(existing.liquidity?.usd)) best.set(address, pair);
   }
-  return [...best.values()].map((pair) => normalize(pair, pair.baseToken?.address ? images.get(pair.baseToken.address) : undefined)).filter((token): token is WorkerToken => Boolean(token));
+  return [...best.values()].map((pair) => normalize(
+    pair,
+    pair.baseToken?.address ? images.get(pair.baseToken.address) : undefined,
+    Boolean(pair.baseToken?.address && heliusAddresses.has(pair.baseToken.address)),
+  )).filter((token): token is WorkerToken => Boolean(token));
 }
 
 async function saveAndEvaluate(tokens: WorkerToken[]) {
@@ -139,7 +153,7 @@ async function saveAndEvaluate(tokens: WorkerToken[]) {
     method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal',
     body: JSON.stringify(tokens.map((token) => ({
       mint_address: token.id, symbol: token.symbol, name: token.name.slice(0, 120), image_url: token.imageUrl || null,
-      dex_url: token.externalUrl || null, pair_address: token.pairAddress || null, source: 'dexscreener', last_seen_at: startedAt.toISOString(),
+      dex_url: token.externalUrl || null, pair_address: token.pairAddress || null, source: token.discoverySource, last_seen_at: startedAt.toISOString(),
     }))),
   });
   await rest('token_snapshots?on_conflict=mint_address,captured_at', {
@@ -150,9 +164,15 @@ async function saveAndEvaluate(tokens: WorkerToken[]) {
       buys_5m: token.buyers5m, sells_5m: token.sellers5m, buy_pressure: token.buyPressure,
       pair_age_minutes: token.ageMinutes, memeradar_score: token.score, momentum_score: token.scoreBreakdown.momentum,
       liquidity_score: token.scoreBreakdown.liquidity, participation_score: token.scoreBreakdown.participation,
-      safety_score: token.scoreBreakdown.safety, source: 'dexscreener',
+      safety_score: token.scoreBreakdown.safety, source: token.discoverySource,
     }))),
   });
+  const enrichedOnchain = tokens.filter((token) => token.discoverySource === 'helius+dexscreener').map((token) => token.id);
+  if (enrichedOnchain.length) {
+    await rest(`discovery_candidates?mint_address=in.(${enrichedOnchain.join(',')})`, {
+      method: 'PATCH', prefer: 'return=minimal', body: JSON.stringify({ processed_at: startedAt.toISOString() }),
+    });
+  }
 
   const rules = await rest<StoredRule[]>('alert_rules?owner_scope=eq.private-site-owner&enabled=eq.true&select=id,name,conditions,last_triggered_at,match_count,enabled');
   let matches = 0;

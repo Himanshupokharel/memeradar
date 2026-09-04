@@ -14,6 +14,7 @@ let rotationCursor = 0;
 const tokenCache = new Map<string, { token: Token; updatedAt: number }>();
 
 type DiscoveryItem = { chainId?: string; tokenAddress?: string; icon?: string | null };
+type OnchainDiscoveryResponse = { configured?: boolean; candidates?: Array<{ mintAddress?: string }> };
 type DiscoveryChannels = NonNullable<TokenSnapshot['discovery']>['channels'];
 type DiscoveryCache = {
   expires: number;
@@ -51,6 +52,19 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function getOnchainCandidates(): Promise<DiscoveryItem[]> {
+  const response = await fetch('/api/discovery-candidates', {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) throw new Error(`On-chain discovery returned ${response.status}`);
+  const payload = await response.json() as OnchainDiscoveryResponse;
+  return (payload.candidates || [])
+    .filter((candidate) => candidate.mintAddress)
+    .map((candidate) => ({ chainId: 'solana', tokenAddress: candidate.mintAddress }));
+}
+
 function makeSparkline(address: string, change: number, activity: number) {
   let seed = [...address].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const start = 50 - change * 0.45;
@@ -77,7 +91,7 @@ function marketRisks(liquidity: number, marketCap: number, ageMinutes: number): 
   flags.push(ratio >= 0.12
     ? { label: 'Depth ratio healthy', level: 'low', detail: 'Liquidity is meaningful relative to market value.' }
     : { label: 'Depth ratio low', level: ratio < 0.05 ? 'high' : 'medium', detail: 'Liquidity is limited relative to market value.' });
-  flags.push({ label: 'On-chain checks pending', level: 'medium', detail: 'Mint authority and holder checks require the planned Helius integration.' });
+  flags.push({ label: 'Open on-chain report', level: 'medium', detail: 'Open the token detail page for cached Helius authority and concentration checks.' });
   return flags;
 }
 
@@ -149,7 +163,7 @@ async function fetchLiveSnapshot(): Promise<TokenSnapshot> {
     tokens,
     source: 'dexscreener',
     updatedAt: new Date().toISOString(),
-    notice: 'Market metrics rotate every 3s across a five-channel discovery pool.',
+    notice: 'Market metrics rotate every 3s across DEX Screener and on-chain Helius discovery.',
     discovery: { candidatePool: discovery.addresses.length, refreshedAt: discovery.refreshedAt, coverageSeconds, channels: discovery.channels },
   };
   memoryCache = { expires: Date.now() + SNAPSHOT_CACHE_MS, snapshot };
@@ -164,6 +178,7 @@ async function fetchDiscovery() {
     getJson<DiscoveryItem[]>('/ads/latest/v1'),
     getJson<DiscoveryItem[]>('/token-boosts/latest/v1'),
     getJson<DiscoveryItem[]>('/token-boosts/top/v1'),
+    getOnchainCandidates(),
   ]);
   const channelItems = results.map((result) => result.status === 'fulfilled' && Array.isArray(result.value) ? result.value.filter((item) => item.chainId === 'solana' && item.tokenAddress) : []);
   const channels: DiscoveryChannels = {
@@ -172,6 +187,7 @@ async function fetchDiscovery() {
     ads: channelItems[2].length,
     latestBoosts: channelItems[3].length,
     topBoosts: channelItems[4].length,
+    helius: channelItems[5].length,
   };
   const discovery = channelItems.flat();
   const addresses = [...new Set(discovery.map((item) => item.tokenAddress as string))];

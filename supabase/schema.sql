@@ -86,9 +86,22 @@ create table if not exists public.ingestion_runs (
   error_message text
 );
 
+create table if not exists public.discovery_candidates (
+  mint_address text primary key,
+  source text not null,
+  source_program text,
+  latest_signature text,
+  first_detected_at timestamptz not null default now(),
+  last_detected_at timestamptz not null default now(),
+  processed_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb
+);
+
 create index if not exists token_snapshots_mint_time_idx on public.token_snapshots (mint_address, captured_at desc);
 create index if not exists alert_rules_owner_scope_idx on public.alert_rules (owner_scope, enabled);
 create index if not exists alert_events_rule_time_idx on public.alert_events (rule_id, triggered_at desc);
+create index if not exists discovery_candidates_detected_idx on public.discovery_candidates (last_detected_at desc);
+create index if not exists discovery_candidates_pending_idx on public.discovery_candidates (processed_at, last_detected_at desc);
 
 alter table public.tokens enable row level security;
 alter table public.token_snapshots enable row level security;
@@ -96,6 +109,7 @@ alter table public.token_risk_checks enable row level security;
 alter table public.alert_rules enable row level security;
 alter table public.alert_events enable row level security;
 alter table public.ingestion_runs enable row level security;
+alter table public.discovery_candidates enable row level security;
 
 -- V2 accesses these tables only from private server routes using a server secret.
 -- Add end-user policies and Supabase Auth before making MemeRadar multi-user or public.
