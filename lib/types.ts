@@ -43,6 +43,18 @@ export type TokenSnapshot = {
   source: 'dexscreener' | 'mock';
   updatedAt: string;
   notice?: string;
+  discovery?: {
+    candidatePool: number;
+    refreshedAt: string;
+    coverageSeconds: number;
+    channels: {
+      profiles: number;
+      community: number;
+      ads: number;
+      latestBoosts: number;
+      topBoosts: number;
+    };
+  };
 };
 
 export type AlertRule = {

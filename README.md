@@ -14,7 +14,7 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Alert Inbox with unread counts, automatic refresh, token links, and read controls
 - Responsive layouts for desktop, tablet, and mobile
 - Live price, liquidity, volume, transaction, price-change, valuation, and pair-age data from DEX Screener
-- Automatic 3-second refresh for token discovery and market metrics while the app is visible
+- Five-channel discovery refreshed every 15 seconds, with market metrics rotating every 3 seconds while the app is visible
 - Token artwork from the same DEX Screener records, with a generated letter fallback when no artwork is supplied
 - Minute-by-minute market snapshots saved by a 24/7 Supabase background worker
 - Alert matching against each saved minute snapshot, with match counts and a 15-minute repeat guard
@@ -92,10 +92,10 @@ MemeRadar/
 
 ### Why this structure matters
 
-The interface reads one consistent `Token` shape. In the current owner-only release, `LiveMarketProvider.tsx` asks DEX Screener directly from the browser every three seconds. A Supabase Edge Function independently repeats discovery every minute, saves history, and evaluates alerts even when every browser is closed. A Token Detail page asks a private endpoint for a cached Helius risk report. Real secret keys never enter browser code.
+The interface reads one consistent `Token` shape. In the current owner-only release, `LiveMarketProvider.tsx` refreshes the DEX Screener discovery pool every 15 seconds and rotates market updates through that pool every three seconds. A Supabase Edge Function independently repeats the expanded discovery every minute, saves history, and evaluates alerts even when every browser is closed. A Token Detail page asks a private endpoint for a cached Helius risk report. Real secret keys never enter browser code.
 
 ```text
-DEX Screener → 3-second browser feed → every screen
+DEX Screener → 15-second discovery + 3-second market rotation → every screen
        │                               └→ Helius risk endpoint → cached check
        │ every minute, around the clock
        ▼
@@ -136,11 +136,11 @@ Learn:
 - `fetch`, JSON, request limits, and error handling
 - Server-side versus browser-side code
 
-The app now receives pair discovery, prices, liquidity, volume, transactions, price changes, valuation, pair age, and available token artwork from DEX Screener. Read `lib/providers/dexscreener-provider.ts` from top to bottom. Notice that outside responses are normalized inside the provider rather than inside a visual component. `components/LiveMarketProvider.tsx` refreshes candidates and market metrics directly in the browser every three seconds while the tab is visible; `components/AutoRefresh.tsx` only displays that connection state.
+The app now receives pair discovery, prices, liquidity, volume, transactions, price changes, valuation, pair age, and available token artwork from DEX Screener. Read `lib/providers/dexscreener-provider.ts` from top to bottom. Notice that outside responses are normalized inside the provider rather than inside a visual component. Discovery combines latest profiles, community takeovers, ads, latest boosts, and top boosts. The browser refreshes that five-channel candidate pool every 15 seconds, then rotates 30-address market batches every three seconds so larger pools stay fresh without exceeding the documented limits. `components/AutoRefresh.tsx` displays that market-update state.
 
 This aggressive polling is suitable for the current owner-only release and remains under the documented limits for one active user. Before sharing the site with many concurrent users, move polling into a shared scheduled cache so visitor count does not multiply requests.
 
-The “New Tokens” screen currently means the newest pairs in MemeRadar’s candidate feed. Candidate discovery combines DEX Screener’s latest token profiles and active boosts; it is not a complete feed of every new Solana pool. This limitation is shown in the interface.
+The “New Tokens” screen currently means the newest pairs in MemeRadar’s expanded candidate feed. The discovery coverage panel shows how many candidates each official channel contributed and how long one full market rotation takes. It is still not a complete feed of every newly created Solana pool. True block-level discovery requires monitoring DEX programs through a service such as Helius and is a later upgrade.
 
 ### Step 4 — Understand Helius checks (complete)
 
@@ -191,7 +191,7 @@ The background worker contains optional Telegram delivery, but it stays inactive
 
 ## Lowest-cost development path
 
-1. Use the current public DEX Screener connection and 3-second live refresh while validating the private product.
+1. Use the current public DEX Screener connection, 15-second candidate discovery, and 3-second market rotation while validating the private product.
 2. Keep fallback data so provider downtime never creates a blank dashboard.
 3. Start with Helius’s available entry tier and monitor usage.
 4. Use Supabase’s entry tier once data history and background alerts are genuinely needed.
@@ -222,4 +222,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Let the 24/7 worker collect enough completed samples to judge the score bands, then connect the prepared Telegram delivery with private credentials. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.
+Let the 24/7 worker collect enough completed samples across the expanded discovery set, then connect the prepared Telegram delivery with private credentials. After that, evaluate block-level Helius pool discovery only if the extra webhook-credit usage is justified. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.

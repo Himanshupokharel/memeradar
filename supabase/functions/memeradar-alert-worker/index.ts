@@ -106,19 +106,26 @@ function normalize(pair: Pair, imageUrl?: string): WorkerToken | undefined {
 }
 
 async function collectTokens() {
-  const [profiles, boosts] = await Promise.all([
+  const results = await Promise.allSettled([
     getJson<DiscoveryItem[]>(`${DEX}/token-profiles/latest/v1`),
+    getJson<DiscoveryItem[]>(`${DEX}/community-takeovers/latest/v1`),
+    getJson<DiscoveryItem[]>(`${DEX}/ads/latest/v1`),
     getJson<DiscoveryItem[]>(`${DEX}/token-boosts/latest/v1`),
+    getJson<DiscoveryItem[]>(`${DEX}/token-boosts/top/v1`),
   ]);
-  const discovery = [...profiles, ...boosts].filter((item) => item.chainId === 'solana' && item.tokenAddress);
-  const addresses = [...new Set(discovery.map((item) => item.tokenAddress as string))].slice(0, 30);
+  const discovery = results.flatMap((result) => result.status === 'fulfilled' && Array.isArray(result.value)
+    ? result.value.filter((item) => item.chainId === 'solana' && item.tokenAddress)
+    : []);
+  const addresses = [...new Set(discovery.map((item) => item.tokenAddress as string))].slice(0, 60);
   if (!addresses.length) throw new Error('No Solana candidates were returned');
   const images = new Map(discovery.filter((item) => item.icon?.startsWith('https://')).map((item) => [item.tokenAddress as string, item.icon as string]));
-  const pairs = await getJson<Pair[]>(`${DEX}/tokens/v1/solana/${addresses.join(',')}`);
+  const batches = Array.from({ length: Math.ceil(addresses.length / 30) }, (_, index) => addresses.slice(index * 30, index * 30 + 30));
+  const pairs = (await Promise.all(batches.map((batch) => getJson<Pair[]>(`${DEX}/tokens/v1/solana/${batch.join(',')}`)))).flat();
+  const requested = new Set(addresses);
   const best = new Map<string, Pair>();
   for (const pair of pairs) {
     const address = pair.baseToken?.address;
-    if (!address) continue;
+    if (!address || !requested.has(address)) continue;
     const existing = best.get(address);
     if (!existing || number(pair.liquidity?.usd) > number(existing.liquidity?.usd)) best.set(address, pair);
   }

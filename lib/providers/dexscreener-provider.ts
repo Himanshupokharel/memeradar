@@ -5,11 +5,23 @@ import type { TokenProvider } from './token-provider';
 
 const API = 'https://api.dexscreener.com';
 const SNAPSHOT_CACHE_MS = 3_000;
-const DISCOVERY_CACHE_MS = 3_000;
+const DISCOVERY_CACHE_MS = 15_000;
+const TOKEN_CACHE_MS = 2 * 60_000;
+const BATCH_SIZE = 30;
 let memoryCache: { expires: number; snapshot: TokenSnapshot } | undefined;
-let discoveryCache: { expires: number; addresses: string[]; images: Map<string, string> } | undefined;
+let discoveryCache: DiscoveryCache | undefined;
+let rotationCursor = 0;
+const tokenCache = new Map<string, { token: Token; updatedAt: number }>();
 
 type DiscoveryItem = { chainId?: string; tokenAddress?: string; icon?: string | null };
+type DiscoveryChannels = NonNullable<TokenSnapshot['discovery']>['channels'];
+type DiscoveryCache = {
+  expires: number;
+  refreshedAt: string;
+  addresses: string[];
+  images: Map<string, string>;
+  channels: DiscoveryChannels;
+};
 type Pair = {
   chainId?: string;
   dexId?: string;
@@ -108,34 +120,64 @@ function normalize(pair: Pair, discoveryImage?: string): Token | undefined {
 
 async function fetchLiveSnapshot(): Promise<TokenSnapshot> {
   if (memoryCache && memoryCache.expires > Date.now()) return memoryCache.snapshot;
-  const { addresses, images } = await fetchDiscovery();
+  const discovery = await fetchDiscovery();
+  const batchStart = rotationCursor % discovery.addresses.length;
+  const addresses = Array.from({ length: Math.min(BATCH_SIZE, discovery.addresses.length) }, (_, index) => discovery.addresses[(batchStart + index) % discovery.addresses.length]);
+  rotationCursor = (batchStart + BATCH_SIZE) % discovery.addresses.length;
+  const requested = new Set(addresses);
   const pairs = await getJson<Pair[]>(`/tokens/v1/solana/${addresses.join(',')}`);
   const bestByToken = new Map<string, Pair>();
   for (const pair of pairs) {
     const address = pair.baseToken?.address;
-    if (!address) continue;
+    if (!address || !requested.has(address)) continue;
     const existing = bestByToken.get(address);
     if (!existing || safeNumber(pair.liquidity?.usd) > safeNumber(existing.liquidity?.usd)) bestByToken.set(address, pair);
   }
-  const tokens = [...bestByToken.values()].map((pair) => normalize(pair, pair.baseToken?.address ? images.get(pair.baseToken.address) : undefined)).filter((token): token is Token => Boolean(token));
+  const now = Date.now();
+  const activeCandidates = new Set(discovery.addresses);
+  for (const pair of bestByToken.values()) {
+    const token = normalize(pair, pair.baseToken?.address ? discovery.images.get(pair.baseToken.address) : undefined);
+    if (token) tokenCache.set(token.id, { token, updatedAt: now });
+  }
+  for (const [mint, cached] of tokenCache) {
+    if (!activeCandidates.has(mint) || now - cached.updatedAt > TOKEN_CACHE_MS) tokenCache.delete(mint);
+  }
+  const tokens = [...tokenCache.values()].sort((a, b) => b.updatedAt - a.updatedAt).map((item) => item.token);
   if (!tokens.length) throw new Error('No usable Solana pairs returned');
-  const snapshot: TokenSnapshot = { tokens, source: 'dexscreener', updatedAt: new Date().toISOString(), notice: 'Candidates and market metrics refresh every 3s.' };
+  const coverageSeconds = Math.max(3, Math.ceil(discovery.addresses.length / BATCH_SIZE) * 3);
+  const snapshot: TokenSnapshot = {
+    tokens,
+    source: 'dexscreener',
+    updatedAt: new Date().toISOString(),
+    notice: 'Market metrics rotate every 3s across a five-channel discovery pool.',
+    discovery: { candidatePool: discovery.addresses.length, refreshedAt: discovery.refreshedAt, coverageSeconds, channels: discovery.channels },
+  };
   memoryCache = { expires: Date.now() + SNAPSHOT_CACHE_MS, snapshot };
   return snapshot;
 }
 
 async function fetchDiscovery() {
   if (discoveryCache && discoveryCache.expires > Date.now()) return discoveryCache;
-  const [profiles, boosts] = await Promise.all([
+  const results = await Promise.allSettled([
     getJson<DiscoveryItem[]>('/token-profiles/latest/v1'),
+    getJson<DiscoveryItem[]>('/community-takeovers/latest/v1'),
+    getJson<DiscoveryItem[]>('/ads/latest/v1'),
     getJson<DiscoveryItem[]>('/token-boosts/latest/v1'),
+    getJson<DiscoveryItem[]>('/token-boosts/top/v1'),
   ]);
-  const discovery = [...profiles, ...boosts].filter((item) => item.chainId === 'solana' && item.tokenAddress);
-  const addresses = [...new Set(discovery
-    .map((item) => item.tokenAddress as string))].slice(0, 30);
+  const channelItems = results.map((result) => result.status === 'fulfilled' && Array.isArray(result.value) ? result.value.filter((item) => item.chainId === 'solana' && item.tokenAddress) : []);
+  const channels: DiscoveryChannels = {
+    profiles: channelItems[0].length,
+    community: channelItems[1].length,
+    ads: channelItems[2].length,
+    latestBoosts: channelItems[3].length,
+    topBoosts: channelItems[4].length,
+  };
+  const discovery = channelItems.flat();
+  const addresses = [...new Set(discovery.map((item) => item.tokenAddress as string))];
   if (!addresses.length) throw new Error('No live Solana candidates returned');
   const images = new Map(discovery.filter((item) => item.icon?.startsWith('https://')).map((item) => [item.tokenAddress as string, item.icon as string]));
-  discoveryCache = { expires: Date.now() + DISCOVERY_CACHE_MS, addresses, images };
+  discoveryCache = { expires: Date.now() + DISCOVERY_CACHE_MS, refreshedAt: new Date().toISOString(), addresses, images, channels };
   return discoveryCache;
 }
 
