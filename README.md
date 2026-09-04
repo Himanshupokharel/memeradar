@@ -25,6 +25,7 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Permanent outcome labels with 2×–100× milestones, drawdown, lifecycle heuristics, and 1h/6h/24h/7d checkpoints
 - Adaptive follow-up recording: newest tokens every minute, then lower-frequency checks as each token ages
 - Experimental advanced momentum from saved price velocity, volume, participation, and liquidity observations
+- Similar-age percentile rankings for overall score, momentum, liquidity, participation, and safety
 - Direct Buy and Sell controls on every live token table row, with final approval inside the connected wallet
 - Non-custodial buy/sell workspace powered by Jupiter, with Wallet Standard connection and approval inside the user’s wallet
 
@@ -95,6 +96,7 @@ MemeRadar/
 ├── supabase/schema.sql          Rebuildable database structure
 ├── supabase/helius-discovery.sql  Migration for on-chain candidates
 ├── supabase/outcome-labeling.sql  Permanent outcome labels and checkpoint logic
+├── supabase/percentile-ranking.sql  Persisted live-cohort relative ranks
 ├── supabase/functions/          24/7 scanner and authenticated webhook receiver
 ├── public/                      Files the browser can load directly
 └── .env.example                 Names of future secret settings (no real keys)
@@ -240,7 +242,19 @@ For now this signal is displayed beside the main score rather than silently chan
 
 The Backtesting screen now compares first observations across 15-minute, 1-hour, 6-hour, and 24-hour windows. It automatically groups scores of 70+ against the below-60 baseline, reports differences in median peak and +20% hit rate, and labels each window as collecting, early, or established. Both comparison groups need 30 completed observations before an early read and 100 each before the product calls the sample established. These are cautious product guardrails, not statistical proof or return predictions.
 
-The next scoring upgrade is percentile ranking: compare a token with other tokens observed under similar market conditions instead of treating every fixed threshold as equally meaningful. Advanced Momentum should receive main-score weight only after outcome labels show that it improves separation from the baseline.
+Calibration remains active while each outcome window accumulates enough comparable samples. Advanced Momentum should receive main-score weight only after outcome labels show that it improves separation from the baseline.
+
+### Step 15 — Add percentile ranking (complete)
+
+Each live token now receives a P1–P99 relative rank. MemeRadar first compares it with tokens in the same age group—under 30 minutes, 30 minutes to 3 hours, or older than 3 hours. When fewer than five comparable tokens exist, it transparently uses the complete live candidate set instead.
+
+The overall rank and component ranks are visible on token tables and detail pages. The table can be filtered to the top 20% or top 10% of the current cohort. Each saved snapshot also keeps the rank, cohort, and cohort size so future backtesting can determine whether relative ranking adds value.
+
+A percentile is not a probability. P80 means the current measurement ranks above approximately 80% of its comparison cohort; it does not mean the token has an 80% chance of rising.
+
+### Step 16 — Finish Risk V1 (next)
+
+The next checklist item is to combine the existing Helius authority and concentration checks with creator history, liquidity-lock evidence where available, and clearer confidence states. Risk labels must remain evidence-based and avoid unsupported accusations.
 
 ## Lowest-cost development path
 
@@ -263,7 +277,7 @@ Pricing and API limits can change, so check each provider’s current official d
 
 This is intentionally understandable. Momentum, liquidity, participation, and the score’s safety component use live DEX Screener fields. Helius risk checks appear separately so users can distinguish market-derived scoring from on-chain facts. The new Backtesting screen begins that validation, but its results should still be treated cautiously until each score band has a much larger completed sample.
 
-The small momentum bars are an illustrative shape derived from the current five-minute price change and trade intensity. DEX Screener’s current pair response does not supply tick-by-tick history through the endpoints used here, so the interface labels this honestly.
+Momentum bars use saved price observations when enough history exists and fall back to current five-minute activity while history is still collecting. Advanced Momentum remains experimental until outcome labels show that it improves the baseline score.
 
 ## Useful commands
 

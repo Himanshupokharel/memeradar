@@ -18,6 +18,16 @@ export type AdvancedMomentum = {
   sparkline: number[];
 };
 
+export type RelativeRank = {
+  overall: number;
+  momentum: number;
+  liquidity: number;
+  participation: number;
+  safety: number;
+  cohort: 'under-30m' | '30m-3h' | '3h-plus' | 'all-ages';
+  sampleSize: number;
+};
+
 export type Token = {
   id: string;
   name: string;
@@ -49,6 +59,7 @@ export type Token = {
     safety: number;
   };
   advancedMomentum?: AdvancedMomentum;
+  relativeRank?: RelativeRank;
 };
 
 export type TokenSnapshot = {

@@ -19,6 +19,7 @@ type WorkerToken = {
   price: number; marketCap: number; liquidity: number; volume5m: number; volume1h: number;
   buyers5m: number; sellers5m: number; buyPressure: number; ageMinutes: number; score: number;
   scoreBreakdown: { momentum: number; liquidity: number; participation: number; safety: number };
+  relativeRank?: { overall: number; cohort: 'under-30m' | '30m-3h' | '3h-plus' | 'all-ages'; sampleSize: number };
 };
 
 type StoredRule = {
@@ -37,6 +38,27 @@ const telegramBotToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
 const telegramChatId = Deno.env.get('TELEGRAM_CHAT_ID');
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));
 const number = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+
+function ageCohort(ageMinutes: number): 'under-30m' | '30m-3h' | '3h-plus' {
+  if (ageMinutes < 30) return 'under-30m';
+  if (ageMinutes < 180) return '30m-3h';
+  return '3h-plus';
+}
+
+function applyPercentileRanks(tokens: WorkerToken[]): WorkerToken[] {
+  return tokens.map((token) => {
+    const requestedCohort = ageCohort(token.ageMinutes);
+    const similarAge = tokens.filter((candidate) => ageCohort(candidate.ageMinutes) === requestedCohort);
+    const cohort = similarAge.length >= 5 ? similarAge : tokens;
+    const below = cohort.filter((candidate) => candidate.score < token.score).length;
+    const equal = cohort.filter((candidate) => candidate.score === token.score).length;
+    const overall = Math.max(1, Math.min(99, Math.round(((below + equal * 0.5) / cohort.length) * 100)));
+    const selectedCohort: NonNullable<WorkerToken['relativeRank']>['cohort'] = similarAge.length >= 5
+      ? requestedCohort
+      : 'all-ages';
+    return { ...token, relativeRank: { overall, cohort: selectedCohort, sampleSize: cohort.length } };
+  });
+}
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'MemeRadar-Background/1.0' } });
@@ -154,11 +176,12 @@ async function collectTokens() {
     const existing = best.get(address);
     if (!existing || number(pair.liquidity?.usd) > number(existing.liquidity?.usd)) best.set(address, pair);
   }
-  return [...best.values()].map((pair) => normalize(
+  const tokens = [...best.values()].map((pair) => normalize(
     pair,
     pair.baseToken?.address ? images.get(pair.baseToken.address) : undefined,
     Boolean(pair.baseToken?.address && heliusAddresses.has(pair.baseToken.address)),
   )).filter((token): token is WorkerToken => Boolean(token));
+  return applyPercentileRanks(tokens);
 }
 
 async function saveAndEvaluate(tokens: WorkerToken[]) {
@@ -180,6 +203,9 @@ async function saveAndEvaluate(tokens: WorkerToken[]) {
       pair_age_minutes: token.ageMinutes, memeradar_score: token.score, momentum_score: token.scoreBreakdown.momentum,
       liquidity_score: token.scoreBreakdown.liquidity, participation_score: token.scoreBreakdown.participation,
       safety_score: token.scoreBreakdown.safety, source: token.discoverySource,
+      percentile_rank: token.relativeRank?.overall ?? null,
+      percentile_cohort: token.relativeRank?.cohort ?? null,
+      percentile_sample_size: token.relativeRank?.sampleSize ?? null,
     }))),
   });
   const enrichedOnchain = tokens.filter((token) => token.discoverySource === 'helius+dexscreener').map((token) => token.id);

@@ -98,6 +98,9 @@ export async function POST(request: Request) {
         liquidity_score: token.scoreBreakdown.liquidity,
         participation_score: token.scoreBreakdown.participation,
         safety_score: token.scoreBreakdown.safety,
+        percentile_rank: token.relativeRank?.overall ?? null,
+        percentile_cohort: token.relativeRank?.cohort ?? null,
+        percentile_sample_size: token.relativeRank?.sampleSize ?? null,
         source: 'dexscreener',
       }))),
     });

@@ -32,6 +32,9 @@ create table if not exists public.token_snapshots (
   liquidity_score integer,
   participation_score integer,
   safety_score integer,
+  percentile_rank smallint,
+  percentile_cohort text,
+  percentile_sample_size smallint,
   source text not null default 'dexscreener',
   unique (mint_address, captured_at)
 );

@@ -1,7 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import type { RiskFlag } from '@/lib/types';
+import { cohortLabel } from '@/lib/percentiles';
+import type { RelativeRank, RiskFlag } from '@/lib/types';
 
 export function formatMoney(value: number) {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
@@ -18,6 +19,12 @@ export function formatAge(minutes: number) {
 export function ScoreBadge({ score, large = false }: { score: number; large?: boolean }) {
   const tone = score >= 80 ? 'high' : score >= 65 ? 'mid' : score >= 50 ? 'watch' : 'low';
   return <span className={`score score-${tone} ${large ? 'score-large' : ''}`}>{score}</span>;
+}
+
+export function PercentileBadge({ rank, detailed = false }: { rank?: RelativeRank; detailed?: boolean }) {
+  if (!rank) return <span className="percentile-badge percentile-collecting">P—</span>;
+  const tone = rank.overall >= 90 ? 'top' : rank.overall >= 70 ? 'strong' : rank.overall >= 40 ? 'middle' : 'weak';
+  return <span className={`percentile-badge percentile-${tone}`} title={`Ranks above approximately ${rank.overall}% of ${rank.sampleSize} ${cohortLabel(rank.cohort)} candidates`}><b>P{rank.overall}</b>{detailed && <small>{rank.sampleSize} {cohortLabel(rank.cohort)} peers</small>}</span>;
 }
 
 export function TokenLogo({ symbol, color, imageUrl, large = false }: { symbol: string; color: string; imageUrl?: string; large?: boolean }) {
