@@ -55,3 +55,7 @@ export function RiskFlags({ risks, compact = false }: { risks: RiskFlag[]; compa
     </div>
   );
 }
+
+export function RiskLevelBadge({ level, confidence }: { level: 'lower' | 'moderate' | 'elevated' | 'critical'; confidence?: 'low' | 'medium' | 'high' }) {
+  return <span className={`risk-level-badge risk-level-${level}`}>{level} observed risk{confidence ? ` · ${confidence} confidence` : ''}</span>;
+}

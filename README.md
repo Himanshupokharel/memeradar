@@ -19,7 +19,7 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Token artwork from the same DEX Screener records, with a generated letter fallback when no artwork is supplied
 - Minute-by-minute market snapshots saved by a 24/7 Supabase background worker
 - Alert matching against each saved minute snapshot, with match counts and a 15-minute repeat guard
-- Helius checks for mint authority, freeze authority, metadata mutability, and top token-account concentration
+- Risk V1 with Helius authority controls, concentration, metadata identity, authority footprint, evidence coverage, and explicit unknown states
 - Backtesting screen with 15-minute, 1-hour, 6-hour, and 24-hour historical outcome windows
 - Score-band comparisons, completed-sample counts, median changes, and peak observations
 - Permanent outcome labels with 2×–100× milestones, drawdown, lifecycle heuristics, and 1h/6h/24h/7d checkpoints
@@ -252,9 +252,15 @@ The overall rank and component ranks are visible on token tables and detail page
 
 A percentile is not a probability. P80 means the current measurement ranks above approximately 80% of its comparison cohort; it does not mean the token has an 80% chance of rising.
 
-### Step 16 — Finish Risk V1 (next)
+### Step 16 — Finish Risk V1 (complete)
 
-The next checklist item is to combine the existing Helius authority and concentration checks with creator history, liquidity-lock evidence where available, and clearer confidence states. Risk labels must remain evidence-based and avoid unsupported accusations.
+Risk V1 now separates observed risk from evidence confidence. It checks mint and freeze authority, top token-account concentration, metadata mutability, available creator identity, and the number of indexed assets controlled by the current metadata authority. The complete evidence list appears on Token Detail pages and a compact warning follows the user into the wallet-confirmed trade workspace.
+
+Every unknown is shown explicitly and does not count as a passed check. The current Helius and DEX Screener responses do not provide reliable liquidity-lock or LP-burn proof, so MemeRadar labels that evidence unavailable instead of guessing. Creator verification confirms an indexed metadata link; it is not a character judgment or a guarantee. Results are cached privately for ten minutes to conserve the entry-tier Helius allowance.
+
+### Step 17 — Add Buy/Sell Signal V0.1 (next)
+
+The next research step is a paper-only signal state that records when transparent entry or exit conditions become true, then compares those labels with permanent outcomes. It must remain separate from wallet execution, avoid recommendation language, and never trade automatically.
 
 ## Lowest-cost development path
 

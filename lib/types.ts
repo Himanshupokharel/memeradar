@@ -106,7 +106,24 @@ export type OnchainRiskReport = {
   mint: string;
   checkedAt: string;
   riskScore: number;
+  riskLevel: 'lower' | 'moderate' | 'elevated' | 'critical';
+  confidence: 'low' | 'medium' | 'high';
+  confidenceReason: string;
+  checksCompleted: number;
+  checksTotal: number;
   top10TokenAccountPct: number | null;
+  authorityAddress: string | null;
+  creatorAddress: string | null;
+  creatorVerified: boolean | null;
+  authorityAssetCount: number | null;
+  liquidityLockStatus: 'verified' | 'not-verified' | 'unavailable';
+  evidence: Array<{
+    id: 'mint-authority' | 'freeze-authority' | 'concentration' | 'metadata' | 'creator' | 'authority-footprint' | 'liquidity-lock';
+    label: string;
+    status: 'pass' | 'warning' | 'danger' | 'unknown';
+    summary: string;
+    source: 'Helius RPC' | 'Helius DAS' | 'Market provider';
+  }>;
   flags: RiskFlag[];
   cached: boolean;
 };

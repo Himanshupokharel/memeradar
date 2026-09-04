@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { tokenProvider } from '@/lib/providers/dexscreener-provider';
-import type { Token } from '@/lib/types';
-import { formatAge, formatMoney, RiskFlags, ScoreBadge, TokenLogo } from './TokenPrimitives';
+import type { OnchainRiskReport, Token } from '@/lib/types';
+import { formatAge, formatMoney, RiskFlags, RiskLevelBadge, ScoreBadge, TokenLogo } from './TokenPrimitives';
 import { useLiveMarket } from './LiveMarketProvider';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
@@ -67,9 +67,12 @@ export function TradeContent({ mint, side }: { mint: string; side: 'buy' | 'sell
   const [pluginState, setPluginState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [swapError, setSwapError] = useState('');
   const [successTx, setSuccessTx] = useState('');
+  const [riskReport, setRiskReport] = useState<OnchainRiskReport>();
+  const [riskState, setRiskState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const token = snapshot.tokens.find((candidate) => candidate.id === mint) || directToken;
   const validMint = MINT_PATTERN.test(mint);
   const dangerouslyThin = Boolean(token && token.liquidity < 10_000);
+  const onchainWarning = riskReport?.evidence.find((evidence) => evidence.status === 'danger');
 
   useEffect(() => {
     if (token || !validMint) return;
@@ -77,6 +80,19 @@ export function TradeContent({ mint, side }: { mint: string; side: 'buy' | 'sell
     void tokenProvider.getToken(mint).then((result) => { if (active) setDirectToken(result); });
     return () => { active = false; };
   }, [mint, token, validMint]);
+
+  useEffect(() => {
+    if (!validMint) return;
+    let active = true;
+    void fetch(`/api/risk?mint=${encodeURIComponent(mint)}`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Risk check unavailable');
+        return response.json() as Promise<{ report: OnchainRiskReport }>;
+      })
+      .then((data) => { if (active) { setRiskReport(data.report); setRiskState('ready'); } })
+      .catch(() => { if (active) setRiskState('unavailable'); });
+    return () => { active = false; };
+  }, [mint, validMint]);
 
   useEffect(() => {
     if (!validMint) return;
@@ -130,6 +146,12 @@ export function TradeContent({ mint, side }: { mint: string; side: 'buy' | 'sell
           <div className="trade-token-title"><TokenLogo symbol={token?.symbol || '?'} color={token?.color || '#55e6a5'} imageUrl={token?.imageUrl} large /><div><strong>{token?.name || 'Loading token details…'}</strong><span>{token?.symbol || `${mint.slice(0, 6)}…${mint.slice(-4)}`}</span></div>{token && <ScoreBadge score={token.score} />}</div>
           {token && <div className="trade-facts"><div><span>Price</span><b>${token.price < 0.0001 ? token.price.toPrecision(4) : token.price.toFixed(6)}</b></div><div><span>Liquidity</span><b>{formatMoney(token.liquidity)}</b></div><div><span>Pair age</span><b>{formatAge(token.ageMinutes)}</b></div></div>}
           {token && <RiskFlags risks={token.risks.slice(0, 3)} />}
+          <div className="trade-risk-summary">
+            {riskState === 'loading' && <span><i className="live-dot" />Checking on-chain evidence…</span>}
+            {riskState === 'unavailable' && <span className="trade-risk-unavailable">On-chain evidence is unavailable. Review the token page before continuing.</span>}
+            {riskReport && <><RiskLevelBadge level={riskReport.riskLevel} confidence={riskReport.confidence} /><small>{riskReport.checksCompleted}/{riskReport.checksTotal} checks completed · safety evidence {riskReport.riskScore}/100</small></>}
+            <a href={`/token/${mint}#risk-checks`}>Review full evidence →</a>
+          </div>
           <code title={mint}>{mint}</code>
         </section>
 
@@ -147,6 +169,7 @@ export function TradeContent({ mint, side }: { mint: string; side: 'buy' | 'sell
           <div><strong>Wallet required</strong><small>Use a browser with Phantom, Solflare, Jupiter, or another Wallet Standard wallet installed.</small></div>
         </div>
         {dangerouslyThin && <div className="trade-critical" role="alert"><strong>Extremely low liquidity</strong><span>This pool has less than $10,000 of liquidity. Even a small order may suffer severe price impact. Treat the Jupiter warning as a reason not to continue.</span></div>}
+        {onchainWarning && <div className="trade-critical" role="alert"><strong>{onchainWarning.label}</strong><span>{onchainWarning.summary} Review the full evidence before deciding whether to continue.</span></div>}
         {pluginState === 'loading' && <div className="trade-loading"><span className="live-dot" /><strong>Loading secure wallet connection…</strong><small>No wallet action will happen automatically.</small></div>}
         <div id="jupiter-plugin" className={pluginState === 'ready' ? 'plugin-ready' : ''} />
         {visibleError && <div className="trade-message trade-error">{visibleError}</div>}

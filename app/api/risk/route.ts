@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { buildRiskReport, type RiskFacts } from '@/lib/risk-model';
 import { inspectMint, isHeliusConfigured } from '@/lib/server/helius';
 import { isSupabaseConfigured, supabaseRest } from '@/lib/server/supabase';
-import type { OnchainRiskReport, RiskFlag } from '@/lib/types';
+import type { OnchainRiskReport } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 const MINT_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -16,27 +17,23 @@ type RiskRow = {
   metadata_mutable: boolean | null;
   top_10_holder_pct: number | string | null;
   risk_score: number;
+  raw_data: { riskVersion?: string; facts?: RiskFacts } | null;
 };
 
 function reportFromRow(row: RiskRow): OnchainRiskReport {
-  const concentration = row.top_10_holder_pct === null ? null : Number(row.top_10_holder_pct);
-  const flags: RiskFlag[] = [
-    row.mint_authority_revoked
-      ? { label: 'Mint authority revoked', level: 'low', detail: 'The mint account reports no active mint authority.' }
-      : { label: 'Mint authority active', level: 'high', detail: 'An authority can still create additional token supply.' },
-    row.freeze_authority_revoked
-      ? { label: 'Freeze authority revoked', level: 'low', detail: 'The mint account reports no active freeze authority.' }
-      : { label: 'Freeze authority active', level: 'high', detail: 'An authority may be able to freeze token accounts.' },
-    concentration === null
-      ? { label: 'Concentration unavailable', level: 'medium', detail: 'Helius did not return enough supply data to calculate this check.' }
-      : { label: `Top accounts ${concentration.toFixed(1)}%`, level: concentration > 80 ? 'high' : concentration > 60 ? 'medium' : 'low', detail: 'Share held by the ten largest token accounts; exchange and pool accounts may be included.' },
-    row.metadata_mutable === true
-      ? { label: 'Metadata mutable', level: 'medium', detail: 'The token metadata may still be changed by its update authority.' }
-      : row.metadata_mutable === false
-        ? { label: 'Metadata immutable', level: 'low', detail: 'Helius reports that the token metadata is immutable.' }
-        : { label: 'Metadata status unknown', level: 'medium', detail: 'Helius did not return a definitive metadata mutability value.' },
-  ];
-  return { mint: row.mint_address, checkedAt: row.checked_at, riskScore: row.risk_score, top10TokenAccountPct: concentration, flags, cached: true };
+  const savedFacts = row.raw_data?.facts;
+  const facts: RiskFacts = savedFacts || {
+    mintAuthority: row.mint_authority_revoked ? null : row.mint_authority || undefined,
+    freezeAuthority: row.freeze_authority_revoked ? null : row.freeze_authority || undefined,
+    top10TokenAccountPct: row.top_10_holder_pct === null ? null : Number(row.top_10_holder_pct),
+    metadataMutable: row.metadata_mutable,
+    authorityAddress: null,
+    creatorAddress: null,
+    creatorVerified: null,
+    authorityAssetCount: null,
+    liquidityLockStatus: 'unavailable',
+  };
+  return buildRiskReport(row.mint_address, row.checked_at, facts, true);
 }
 
 export async function GET(request: Request) {
@@ -46,7 +43,7 @@ export async function GET(request: Request) {
   try {
     if (isSupabaseConfigured()) {
       const cached = await supabaseRest<RiskRow[]>(`token_risk_checks?mint_address=eq.${encodeURIComponent(mint)}&select=*&limit=1`);
-      if (cached[0] && Date.now() - new Date(cached[0].checked_at).getTime() < 10 * 60_000) {
+      if (cached[0]?.raw_data?.riskVersion === 'risk-v1' && Date.now() - new Date(cached[0].checked_at).getTime() < 10 * 60_000) {
         return NextResponse.json({ configured: true, report: reportFromRow(cached[0]) });
       }
     }
@@ -60,10 +57,10 @@ export async function GET(request: Request) {
         method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: JSON.stringify({
           mint_address: mint,
           checked_at: report.checkedAt,
-          mint_authority: report.authorities.mint,
-          mint_authority_revoked: !report.authorities.mint,
-          freeze_authority: report.authorities.freeze,
-          freeze_authority_revoked: !report.authorities.freeze,
+          mint_authority: report.authorities.mint ?? null,
+          mint_authority_revoked: report.authorities.mint === null,
+          freeze_authority: report.authorities.freeze ?? null,
+          freeze_authority_revoked: report.authorities.freeze === null,
           metadata_mutable: report.metadataMutable,
           top_10_holder_pct: report.top10TokenAccountPct,
           risk_score: report.riskScore,
@@ -76,7 +73,18 @@ export async function GET(request: Request) {
       mint: report.mint,
       checkedAt: report.checkedAt,
       riskScore: report.riskScore,
+      riskLevel: report.riskLevel,
+      confidence: report.confidence,
+      confidenceReason: report.confidenceReason,
+      checksCompleted: report.checksCompleted,
+      checksTotal: report.checksTotal,
       top10TokenAccountPct: report.top10TokenAccountPct,
+      authorityAddress: report.authorityAddress,
+      creatorAddress: report.creatorAddress,
+      creatorVerified: report.creatorVerified,
+      authorityAssetCount: report.authorityAssetCount,
+      liquidityLockStatus: report.liquidityLockStatus,
+      evidence: report.evidence,
       flags: report.flags,
       cached: report.cached,
     };
