@@ -38,6 +38,21 @@ type OutcomeRow = {
   label_version: string;
 };
 
+type OutcomeSummaryRow = {
+  labeled: number | string;
+  reached_2x: number | string;
+  reached_5x: number | string;
+  reached_10x: number | string;
+  dead: number | string;
+  rugged: number | string;
+  completed_1h: number | string;
+  completed_6h: number | string;
+  completed_24h: number | string;
+  completed_7d: number | string;
+  median_maximum_upside_pct: number | string | null;
+  median_maximum_drawdown_pct: number | string | null;
+};
+
 const fields = 'mint_address,first_observed_at,latest_observed_at,observation_minutes,snapshot_count,discovery_price_usd,discovery_market_cap_usd,discovery_liquidity_usd,latest_price_usd,latest_market_cap_usd,latest_liquidity_usd,peak_price_usd,peak_market_cap_usd,maximum_upside_pct,maximum_drawdown_pct,reached_2x,reached_5x,reached_10x,reached_25x,reached_50x,reached_100x,time_to_2x_minutes,time_to_5x_minutes,time_to_10x_minutes,completed_1h,completed_6h,completed_24h,completed_7d,lifecycle_status,label_version';
 const number = (value: number | string | null) => Number(value || 0);
 
@@ -76,14 +91,6 @@ function toLabel(row: OutcomeRow): OutcomeLabel {
   };
 }
 
-function median(values: number[]) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  const value = sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
-  return Math.round(value * 10) / 10;
-}
-
 export async function GET(request: Request) {
   if (!isSupabaseConfigured()) return NextResponse.json({ error: 'outcomes_not_configured' }, { status: 503 });
   const mint = new URL(request.url).searchParams.get('mint');
@@ -93,25 +100,29 @@ export async function GET(request: Request) {
       const rows = await supabaseRest<OutcomeRow[]>(`token_outcomes?mint_address=eq.${encodeURIComponent(mint)}&select=${fields}&limit=1`);
       return NextResponse.json({ label: rows[0] ? toLabel(rows[0]) : null }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
-    const rows = await supabaseRest<OutcomeRow[]>(`token_outcomes?select=${fields}&order=first_observed_at.desc&limit=5000`);
+    const [rows, summaries] = await Promise.all([
+      supabaseRest<OutcomeRow[]>(`token_outcomes?select=${fields}&order=first_observed_at.desc&limit=100`),
+      supabaseRest<OutcomeSummaryRow[]>('rpc/get_memeradar_outcome_summary', { method: 'POST', body: '{}' }),
+    ]);
     const labels = rows.map(toLabel);
+    const summary = summaries[0];
     const report: OutcomeReport = {
       generatedAt: new Date().toISOString(),
       overview: {
-        labeled: labels.length,
-        reached2x: labels.filter((label) => label.reachedMultiples.includes(2)).length,
-        reached5x: labels.filter((label) => label.reachedMultiples.includes(5)).length,
-        reached10x: labels.filter((label) => label.reachedMultiples.includes(10)).length,
-        dead: labels.filter((label) => label.lifecycleStatus === 'dead').length,
-        rugged: labels.filter((label) => label.lifecycleStatus === 'rugged').length,
-        completed1h: labels.filter((label) => label.completedCheckpoints.includes('1h')).length,
-        completed6h: labels.filter((label) => label.completedCheckpoints.includes('6h')).length,
-        completed24h: labels.filter((label) => label.completedCheckpoints.includes('24h')).length,
-        completed7d: labels.filter((label) => label.completedCheckpoints.includes('7d')).length,
-        medianMaximumUpsidePct: median(labels.map((label) => label.maximumUpsidePct)),
-        medianMaximumDrawdownPct: median(labels.map((label) => label.maximumDrawdownPct)),
+        labeled: number(summary?.labeled || 0),
+        reached2x: number(summary?.reached_2x || 0),
+        reached5x: number(summary?.reached_5x || 0),
+        reached10x: number(summary?.reached_10x || 0),
+        dead: number(summary?.dead || 0),
+        rugged: number(summary?.rugged || 0),
+        completed1h: number(summary?.completed_1h || 0),
+        completed6h: number(summary?.completed_6h || 0),
+        completed24h: number(summary?.completed_24h || 0),
+        completed7d: number(summary?.completed_7d || 0),
+        medianMaximumUpsidePct: optionalNumber(summary?.median_maximum_upside_pct ?? null) ?? null,
+        medianMaximumDrawdownPct: optionalNumber(summary?.median_maximum_drawdown_pct ?? null) ?? null,
       },
-      labels: labels.slice(0, 100),
+      labels,
     };
     return NextResponse.json(report, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {

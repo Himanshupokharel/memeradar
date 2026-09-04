@@ -220,6 +220,43 @@ begin
 end;
 $$;
 
+create or replace function public.get_memeradar_outcome_summary()
+returns table (
+  labeled bigint,
+  reached_2x bigint,
+  reached_5x bigint,
+  reached_10x bigint,
+  dead bigint,
+  rugged bigint,
+  completed_1h bigint,
+  completed_6h bigint,
+  completed_24h bigint,
+  completed_7d bigint,
+  median_maximum_upside_pct numeric,
+  median_maximum_drawdown_pct numeric
+)
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select
+    count(*)::bigint,
+    count(*) filter (where o.reached_2x)::bigint,
+    count(*) filter (where o.reached_5x)::bigint,
+    count(*) filter (where o.reached_10x)::bigint,
+    count(*) filter (where o.lifecycle_status = 'dead')::bigint,
+    count(*) filter (where o.lifecycle_status = 'rugged')::bigint,
+    count(*) filter (where o.completed_1h)::bigint,
+    count(*) filter (where o.completed_6h)::bigint,
+    count(*) filter (where o.completed_24h)::bigint,
+    count(*) filter (where o.completed_7d)::bigint,
+    round(percentile_cont(0.5) within group (order by o.maximum_upside_pct)::numeric, 1),
+    round(percentile_cont(0.5) within group (order by o.maximum_drawdown_pct)::numeric, 1)
+  from public.token_outcomes o;
+$$;
+
 drop trigger if exists label_memeradar_snapshot_after_write on public.token_snapshots;
 create trigger label_memeradar_snapshot_after_write
 after insert or update of price_usd, market_cap_usd, liquidity_usd, volume_1h_usd
@@ -230,10 +267,13 @@ execute function public.label_memeradar_snapshot();
 
 comment on table public.token_outcomes is 'Versioned historical labels derived from MemeRadar snapshots.';
 comment on function public.refresh_memeradar_token_outcomes(text) is 'Rebuild one token outcome, or all outcomes when target_mint is null.';
+comment on function public.get_memeradar_outcome_summary() is 'Return exact aggregate outcome counts without the REST row limit.';
 revoke all on public.token_outcomes from public, anon, authenticated;
 revoke all on function public.refresh_memeradar_token_outcomes(text) from public, anon, authenticated;
+revoke all on function public.get_memeradar_outcome_summary() from public, anon, authenticated;
 grant all on public.token_outcomes to service_role;
 grant execute on function public.refresh_memeradar_token_outcomes(text) to service_role;
+grant execute on function public.get_memeradar_outcome_summary() to service_role;
 
 -- Backfill every tracked token once. Future snapshots update their own token label.
 select public.refresh_memeradar_token_outcomes(null);
