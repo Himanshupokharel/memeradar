@@ -199,9 +199,9 @@ Learn:
 
 The Helius webhook listens only for `CREATE_POOL` on verified Raydium and Pump AMM program addresses. It sends an authentication header that the Supabase receiver checks before accepting data. Candidate mints are deduplicated in `discovery_candidates`, then enriched by DEX Screener. Helius notes that webhook configuration changes can take up to two minutes and each delivered event uses credits, so check the Helius usage screen occasionally.
 
-### Step 10 — Connect Telegram delivery (prepared, not connected)
+### Step 10 — Connect Telegram delivery (complete)
 
-The background worker contains optional Telegram delivery, but it stays inactive unless `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are stored as private function settings. This deliberate pause prevents secrets from entering source code. Once those two values are connected and the updated worker is deployed, new matches can reach the chosen Telegram chat. Email or phone delivery can be considered later.
+The background worker sends new alert-rule matches to the private MemeRadar Alerts Telegram bot. `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are stored as encrypted Supabase Edge Function secrets, never in the source code or browser bundle. A complete rule → worker → Telegram delivery test was completed successfully. The 15-minute per-rule repeat guard still prevents noisy duplicate notifications. Email or phone delivery can be considered later.
 
 ### Step 11 — Understand wallet-confirmed swaps (complete)
 
@@ -246,4 +246,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Let the 24/7 worker collect enough completed samples across the hybrid discovery set, watch Helius credit use, and then connect the prepared Telegram delivery with private credentials. Before sharing the product with other people, add a legal review, clearer regional eligibility language, transaction analytics, and broader wallet/device testing. MemeRadar should never hold a user’s seed phrase or private key.
+Let the 24/7 worker collect enough completed samples across the hybrid discovery set and watch Helius credit use. Telegram delivery is connected. Before sharing the product with other people, add a legal review, clearer regional eligibility language, privacy-preserving transaction analytics, and broader wallet/device testing. MemeRadar should never hold a user’s seed phrase or private key.

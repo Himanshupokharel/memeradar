@@ -69,6 +69,7 @@ export function TradeContent({ mint, side }: { mint: string; side: 'buy' | 'sell
   const [successTx, setSuccessTx] = useState('');
   const token = snapshot.tokens.find((candidate) => candidate.id === mint) || directToken;
   const validMint = MINT_PATTERN.test(mint);
+  const dangerouslyThin = Boolean(token && token.liquidity < 10_000);
 
   useEffect(() => {
     if (token || !validMint) return;
@@ -141,12 +142,17 @@ export function TradeContent({ mint, side }: { mint: string; side: 'buy' | 'sell
 
       <section className="panel trade-terminal">
         <div className="panel-head"><div><span className="panel-kicker">JUPITER SWAP</span><h2>{side === 'buy' ? 'SOL → token' : 'Token → SOL'}</h2></div><span className="result-count">MAINNET</span></div>
+        <div className="trade-readiness" aria-label="Trade connection status">
+          <div><span className="live-dot" /><strong>Live Jupiter quotes</strong><small>Route and price impact update before approval.</small></div>
+          <div><strong>Wallet required</strong><small>Use a browser with Phantom, Solflare, Jupiter, or another Wallet Standard wallet installed.</small></div>
+        </div>
+        {dangerouslyThin && <div className="trade-critical" role="alert"><strong>Extremely low liquidity</strong><span>This pool has less than $10,000 of liquidity. Even a small order may suffer severe price impact. Treat the Jupiter warning as a reason not to continue.</span></div>}
         {pluginState === 'loading' && <div className="trade-loading"><span className="live-dot" /><strong>Loading secure wallet connection…</strong><small>No wallet action will happen automatically.</small></div>}
         <div id="jupiter-plugin" className={pluginState === 'ready' ? 'plugin-ready' : ''} />
         {visibleError && <div className="trade-message trade-error">{visibleError}</div>}
         {successTx && <div className="trade-message trade-success"><strong>Swap confirmed.</strong><a href={`https://solscan.io/tx/${successTx}`} target="_blank" rel="noreferrer">View transaction on Solscan ↗</a></div>}
       </section>
     </div>
-    <p className="disclaimer">Jupiter supplies the wallet connection, route, quote, and swap execution. MemeRadar adds no trading fee and does not control transaction approval. Token signals remain informational and do not predict returns.</p>
+    <p className="disclaimer">Jupiter supplies the wallet connection, route, quote, and swap execution. If the wallet list is empty, open MemeRadar in a wallet-enabled browser; the Codex/ChatGPT preview cannot provide a wallet extension. MemeRadar adds no trading fee and does not control transaction approval. Token signals remain informational and do not predict returns.</p>
   </>;
 }
