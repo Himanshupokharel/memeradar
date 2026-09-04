@@ -7,6 +7,7 @@ const navigation = [
   { id: 'dashboard', href: '/', icon: '⌁', label: 'Dashboard' },
   { id: 'new', href: '/new-tokens', icon: '✦', label: 'New Tokens' },
   { id: 'trending', href: '/pre-trending', icon: '↗', label: 'Pre-Trending' },
+  { id: 'backtesting', href: '/backtesting', icon: '⌬', label: 'Backtesting' },
   { id: 'alerts', href: '/alerts', icon: '◎', label: 'Alerts' },
 ];
 
@@ -26,7 +27,7 @@ export function AppShell({ active, children }: { active: string; children: React
           ))}
         </nav>
         <LiveSidebarStatus />
-        <div className="sidebar-note">V2 · INFORMATIONAL ONLY</div>
+        <div className="sidebar-note">RESEARCH SYSTEM · INFORMATIONAL</div>
       </aside>
 
       <section className="workspace">

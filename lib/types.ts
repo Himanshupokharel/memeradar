@@ -79,3 +79,48 @@ export type AlertWorkerStatus = {
   lastRunAt?: string;
   lastStatus?: string;
 };
+
+export type BacktestSignal = {
+  mint: string;
+  symbol: string;
+  name: string;
+  imageUrl?: string;
+  entryAt: string;
+  entryPrice: number;
+  entryScore: number;
+  entryMarketCap: number;
+  entryLiquidity: number;
+  outcomeAt?: string;
+  outcomePrice?: number;
+  horizonChangePct?: number;
+  peakChangePct?: number;
+  observationMinutes: number;
+  snapshotCount: number;
+  eligible: boolean;
+};
+
+export type BacktestBand = {
+  label: string;
+  tracked: number;
+  eligible: number;
+  medianChangePct: number | null;
+  medianPeakPct: number | null;
+  peak20Rate: number | null;
+};
+
+export type BacktestReport = {
+  horizonMinutes: number;
+  generatedAt: string;
+  overview: {
+    tracked: number;
+    eligible: number;
+    collecting: number;
+    snapshotCount: number;
+    medianChangePct: number | null;
+    medianPeakPct: number | null;
+    peak20Rate: number | null;
+    oldestEntryAt?: string;
+  };
+  bands: BacktestBand[];
+  signals: BacktestSignal[];
+};

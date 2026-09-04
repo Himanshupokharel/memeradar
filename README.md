@@ -18,6 +18,8 @@ The MemeRadar score is an informational signal. It is not financial advice, a re
 - Minute-by-minute market snapshots saved by a 24/7 Supabase background worker
 - Alert matching against each saved minute snapshot, with match counts and a 15-minute repeat guard
 - Helius checks for mint authority, freeze authority, metadata mutability, and top token-account concentration
+- Backtesting screen with 15-minute, 1-hour, 6-hour, and 24-hour historical outcome windows
+- Score-band comparisons, completed-sample counts, median changes, and peak observations
 
 ## Run it on your computer
 
@@ -68,6 +70,7 @@ MemeRadar/
 │   ├── new-tokens/page.tsx      New Tokens (/new-tokens)
 │   ├── pre-trending/page.tsx    Pre-Trending (/pre-trending)
 │   ├── alerts/page.tsx          Alerts (/alerts)
+│   ├── backtesting/page.tsx     Historical Backtesting (/backtesting)
 │   └── token/[slug]/page.tsx    Any Token Detail page
 ├── components/                  Reusable interface pieces
 │   ├── AppShell.tsx             Sidebar, top bar, and page frame
@@ -162,7 +165,21 @@ The app stores one snapshot per token per minute, persistent alert rules, matche
 
 Learn scheduled jobs and function logs. Supabase Cron invokes `memeradar-alert-worker` once per minute. The worker uses the same discovery and scoring logic as the interface, saves snapshots, evaluates enabled rules, and records every run. It has a 40-second duplicate guard and each alert rule has a 15-minute repeat guard.
 
-### Step 7 — Add notification delivery (later)
+### Step 7 — Understand backtesting (complete)
+
+Learn:
+
+- First observations, outcome windows, and completed samples
+- Median versus average
+- Sample size, selection bias, and missing data
+
+The Backtesting screen gives every discovered token one entry point: its first positive-price snapshot saved by MemeRadar. It then measures the first available price near the selected outcome window and the peak saved price inside that window. Recent tokens remain labeled “collecting” until enough time has passed and a valid later snapshot exists.
+
+This is a basic historical validation tool, not a trading simulation. It does not model fees, slippage, token taxes, failed transactions, or whether enough liquidity existed for a particular trade size. A score band with only a few completed samples is not reliable evidence.
+
+The database function used by the report lives in `supabase/backtest.sql`. It is restricted to the private server connection, so browser visitors cannot call it directly.
+
+### Step 8 — Add notification delivery (later)
 
 The next alert improvement is optional email, Telegram, or phone delivery. The current version records matches inside MemeRadar but does not contact anyone outside the app.
 
@@ -185,7 +202,7 @@ Pricing and API limits can change, so check each provider’s current official d
 - Participation: 25%
 - Safety: 20%
 
-This is intentionally understandable. Momentum, liquidity, participation, and the score’s safety component use live DEX Screener fields. Helius risk checks appear separately so users can distinguish market-derived scoring from on-chain facts. The score should be backtested against stored historical snapshots before anyone treats it as useful evidence.
+This is intentionally understandable. Momentum, liquidity, participation, and the score’s safety component use live DEX Screener fields. Helius risk checks appear separately so users can distinguish market-derived scoring from on-chain facts. The new Backtesting screen begins that validation, but its results should still be treated cautiously until each score band has a much larger completed sample.
 
 The small momentum bars are an illustrative shape derived from the current five-minute price change and trade intensity. DEX Screener’s current pair response does not supply tick-by-tick history through the endpoints used here, so the interface labels this honestly.
 
@@ -199,4 +216,4 @@ npm run lint     # check common code-quality problems
 
 ## Recommended next milestone
 
-Build a backtesting report from the saved snapshots so the score can be measured against later outcomes. After that, add optional external alert delivery. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.
+Let the 24/7 worker collect enough completed samples to judge the score bands, then add optional external alert delivery. Non-custodial swaps and wallet signing should come only after those research and reliability layers are stable; MemeRadar should never hold a user’s seed phrase or private key.
